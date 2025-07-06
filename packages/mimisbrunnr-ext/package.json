@@ -1,0 +1,106 @@
+{
+  "name": "@my-mimisbrunnr/mimisbrunnr-ext",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "tslib": "^2.3.0"
+  },
+  "nx": {
+    "targets": {
+      "dev": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "wxt",
+          "cwd": "packages/mimisbrunnr-ext"
+        }
+      },
+      "dev:firefox": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "wxt -b firefox",
+          "cwd": "packages/mimisbrunnr-ext"
+        }
+      },
+      "build": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "wxt build",
+          "cwd": "packages/mimisbrunnr-ext"
+        },
+        "outputs": [
+          "{projectRoot}/dist"
+        ]
+      },
+      "build:firefox": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "wxt build -b firefox",
+          "cwd": "packages/mimisbrunnr-ext"
+        },
+        "outputs": [
+          "{projectRoot}/dist"
+        ]
+      },
+      "zip": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "wxt zip",
+          "cwd": "packages/mimisbrunnr-ext"
+        },
+        "dependsOn": [
+          "build"
+        ]
+      },
+      "zip:firefox": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "wxt zip -b firefox",
+          "cwd": "packages/mimisbrunnr-ext"
+        },
+        "dependsOn": [
+          "build:firefox"
+        ]
+      },
+      "compile": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "tsc --noEmit",
+          "cwd": "packages/mimisbrunnr-ext"
+        }
+      },
+      "prepare": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "wxt prepare",
+          "cwd": "packages/mimisbrunnr-ext"
+        }
+      },
+      "lint": {
+        "executor": "@nx/eslint:lint",
+        "outputs": [
+          "{options.outputFile}"
+        ]
+      },
+      "typecheck": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "tsc --noEmit",
+          "cwd": "packages/mimisbrunnr-ext"
+        }
+      }
+    }
+  }
+}
