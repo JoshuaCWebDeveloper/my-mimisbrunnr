@@ -7,10 +7,11 @@
     "tsBuildInfoFile": "dist/tsconfig.lib.tsbuildinfo",
     "emitDeclarationOnly": false,
     "forceConsistentCasingInFileNames": true,
-    "types": ["node"],
-    "jsx": "react-jsx"
+    "types": ["node", "chrome"],
+    "jsx": "react-jsx",
+    "lib": ["es2022", "dom", "dom.iterable"]
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", "types.d.ts", ".wxt/types"],
   "references": [],
   "exclude": [
     "vite.config.ts",

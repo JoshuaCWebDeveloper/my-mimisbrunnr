@@ -1,3 +1,8 @@
 {
+  "editor.codeActionsOnSave": [
+    // Sort package.json keys with
+    // https://marketplace.visualstudio.com/items?itemName=unional.vscode-sort-package-json
+    "source.sortPackageJson"
+  ],
   "cSpell.words": ["mimisbrunnr"]
 }
