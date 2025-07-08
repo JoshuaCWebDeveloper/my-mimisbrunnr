@@ -12,15 +12,8 @@ export default defineContentScript({
     main() {
         console.log('X.com Account Tagger loaded');
 
-        // Watch for dynamic content changes
-        // const observer = new MutationObserver(() => {
-        //     processPageForTags();
-        // });
-
-        // observer.observe(document.body, {
-        //     childList: true,
-        //     subtree: true,
-        // });
+        // Initialize the mutation observer with optimizations
+        initializeMutationObserver();
 
         // Initial processing
         processPageForTags();
@@ -118,6 +111,7 @@ async function displayTagForElement(element: Element, username: string) {
         // Create tag element
         const tagElement = document.createElement('span');
         tagElement.className = 'x-account-tag';
+        tagElement.setAttribute('data-username', username);
         tagElement.textContent = tag.tag;
         tagElement.style.cssText = `
       background-color: ${tag.color};
@@ -142,6 +136,130 @@ async function displayTagForElement(element: Element, username: string) {
     }
 }
 
+// Optimized mutation observer implementation
+let observer: MutationObserver | null = null;
+let debounceTimer: number | null = null;
+let isProcessing = false;
+let lastProcessTime = 0;
+const DEBOUNCE_DELAY = 300; // ms
+const THROTTLE_DELAY = 1000; // ms
+
+function initializeMutationObserver() {
+    // Disconnect existing observer if any
+    if (observer) {
+        observer.disconnect();
+    }
+
+    // Create debounced processing function
+    const debouncedProcess = () => {
+        if (debounceTimer) {
+            clearTimeout(debounceTimer);
+        }
+
+        debounceTimer = window.setTimeout(() => {
+            const now = Date.now();
+
+            // Throttle processing to avoid excessive calls
+            if (now - lastProcessTime < THROTTLE_DELAY) {
+                return;
+            }
+
+            // Prevent concurrent processing
+            if (isProcessing) {
+                return;
+            }
+
+            isProcessing = true;
+            lastProcessTime = now;
+
+            processPageForTags()
+                .catch(error => {
+                    console.error('Error processing page for tags:', error);
+                })
+                .finally(() => {
+                    isProcessing = false;
+                });
+        }, DEBOUNCE_DELAY);
+    };
+
+    // Create mutation observer with optimized callback
+    observer = new MutationObserver(mutations => {
+        // Check if any mutations are relevant
+        let hasRelevantChanges = false;
+
+        for (const mutation of mutations) {
+            // Only process if there are actual node additions
+            if (
+                mutation.type === 'childList' &&
+                mutation.addedNodes.length > 0
+            ) {
+                // Check if added nodes contain relevant elements
+                for (const node of mutation.addedNodes) {
+                    if (node.nodeType === Node.ELEMENT_NODE) {
+                        const element = node as Element;
+
+                        // Check if the added element or its children contain profile links
+                        if (
+                            element.matches?.(
+                                'a[href*="/"], [data-testid="User-Name"]'
+                            ) ||
+                            element.querySelector?.(
+                                'a[href*="/"], [data-testid="User-Name"]'
+                            )
+                        ) {
+                            hasRelevantChanges = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (hasRelevantChanges) break;
+        }
+
+        // Only trigger processing if we found relevant changes
+        if (hasRelevantChanges) {
+            debouncedProcess();
+        }
+    });
+
+    // Start observing with optimized configuration
+    const targetNode = document.body || document.documentElement;
+
+    try {
+        observer.observe(targetNode, {
+            childList: true,
+            subtree: true,
+            // Only observe child list changes, not attributes or character data
+            attributes: false,
+            characterData: false,
+            // Don't observe attribute changes for better performance
+            attributeOldValue: false,
+            characterDataOldValue: false,
+        });
+
+        console.log('Mutation observer initialized successfully');
+    } catch (error) {
+        console.error('Failed to initialize mutation observer:', error);
+    }
+}
+
+// Cleanup function for when the script is unloaded
+function cleanup() {
+    if (observer) {
+        observer.disconnect();
+        observer = null;
+    }
+
+    if (debounceTimer) {
+        clearTimeout(debounceTimer);
+        debounceTimer = null;
+    }
+}
+
+// Listen for page unload to cleanup
+window.addEventListener('beforeunload', cleanup);
+
 // Listen for messages from background script
 if (runtime) {
     runtime.onMessage.addListener((message: MessageRequest) => {
@@ -150,6 +268,11 @@ if (runtime) {
             document
                 .querySelectorAll('.x-account-tag')
                 .forEach(el => el.remove());
+
+            // Reset processing state
+            isProcessing = false;
+            lastProcessTime = 0;
+
             processPageForTags();
         }
     });
