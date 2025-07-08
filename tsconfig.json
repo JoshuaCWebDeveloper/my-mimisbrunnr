@@ -4,9 +4,6 @@
   "files": [],
   "references": [
     {
-      "path": "./js-app"
-    },
-    {
       "path": "./packages/mimisbrunnr-ext"
     }
   ]
