@@ -13,7 +13,7 @@
     "format:check": "nx format:check",
     "postinstall": "nx run mimisbrunnr-ext:prepare",
     "lint": "nx lint",
-    "start": "nx serve",
+    "start": "nx dev",
     "test": "nx test"
   },
   "dependencies": {
