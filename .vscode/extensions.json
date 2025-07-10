@@ -3,6 +3,7 @@
     "nrwl.angular-console",
     "esbenp.prettier-vscode",
     "dbaeumer.vscode-eslint",
-    "unional.vscode-sort-package-json"
+    "unional.vscode-sort-package-json",
+    "styled-components.vscode-styled-components"
   ]
 }
