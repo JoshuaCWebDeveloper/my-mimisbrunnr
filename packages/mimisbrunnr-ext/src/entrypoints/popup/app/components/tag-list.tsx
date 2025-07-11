@@ -152,7 +152,11 @@ export const TagList = ({
                 </div>
             ) : tags.length === 0 && !isLoading ? (
                 <StyledEmptyState>
-                    <div className="icon">🏷️</div>
+                    <div className="icon">
+                        <span role="img" aria-label="tag">
+                            🏷️
+                        </span>
+                    </div>
                     <p className="text">No tags yet. Add one above.</p>
                 </StyledEmptyState>
             ) : (
@@ -174,7 +178,9 @@ export const TagList = ({
                                 disabled={isLoading}
                                 title="Edit"
                             >
-                                ✏️
+                                <span role="img" aria-label="edit">
+                                    ✏️
+                                </span>
                             </button>
                             <button
                                 className="icon-button"

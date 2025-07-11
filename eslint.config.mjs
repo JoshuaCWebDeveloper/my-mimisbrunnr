@@ -1,5 +1,32 @@
 import nx from '@nx/eslint-plugin';
 
+export const baseOverrides = [
+    {
+        files: [
+            '**/*.ts',
+            '**/*.tsx',
+            '**/*.cts',
+            '**/*.mts',
+            '**/*.js',
+            '**/*.jsx',
+            '**/*.cjs',
+            '**/*.mjs',
+        ],
+        // Override or add rules here
+        rules: {
+            '@typescript-eslint/no-unused-vars': [
+                'error',
+                {
+                    varsIgnorePattern: '^_',
+                    argsIgnorePattern: '^_',
+                    destructuredArrayIgnorePattern: '^_',
+                    caughtErrorsIgnorePattern: '^_',
+                },
+            ],
+        },
+    },
+];
+
 export default [
     ...nx.configs['flat/base'],
     ...nx.configs['flat/typescript'],
@@ -29,28 +56,5 @@ export default [
             ],
         },
     },
-    {
-        files: [
-            '**/*.ts',
-            '**/*.tsx',
-            '**/*.cts',
-            '**/*.mts',
-            '**/*.js',
-            '**/*.jsx',
-            '**/*.cjs',
-            '**/*.mjs',
-        ],
-        // Override or add rules here
-        rules: {
-            '@typescript-eslint/no-unused-vars': [
-                'error',
-                {
-                    varsIgnorePattern: '^_',
-                    argsIgnorePattern: '^_',
-                    destructuredArrayIgnorePattern: '^_',
-                    caughtErrorsIgnorePattern: '^_',
-                },
-            ],
-        },
-    },
+    ...baseOverrides,
 ];

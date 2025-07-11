@@ -131,11 +131,11 @@ export const TagManager = () => {
         } catch (_e) {
             setIsOnX(false);
         }
-    }, []);
+    }, [refetch]);
 
     useEffect(() => {
         checkIfOnX();
-    }, []);
+    }, [checkIfOnX]);
 
     const handleChange = useCallback((tag: TagValue) => {
         setActiveTag(tag);
@@ -148,11 +148,11 @@ export const TagManager = () => {
     const handleSave = useCallback(() => {
         setActiveTag({});
         refetch();
-    }, []);
+    }, [refetch]);
 
     const handleDelete = useCallback(() => {
         refetch();
-    }, []);
+    }, [refetch]);
 
     const handleCancel = useCallback(() => {
         setActiveTag({});
@@ -185,7 +185,11 @@ export const TagManager = () => {
                     <p className="subtitle">Organize X.com accounts</p>
                 </div>
                 <StyledNotOnXMessage>
-                    <div className="icon">🐦</div>
+                    <div className="icon">
+                        <span role="img" aria-label="bird">
+                            🐦
+                        </span>
+                    </div>
                     <h2 className="title">Navigate to X.com</h2>
                     <p className="text">Visit X.com to manage account tags.</p>
                 </StyledNotOnXMessage>
