@@ -1,11 +1,7 @@
 import { defineContentScript } from '#imports';
+import { MessageType, Messenger } from '../../messenger.js';
 
-const runtime =
-    typeof window !== 'undefined' && window.browser
-        ? window.browser.runtime
-        : typeof window !== 'undefined' && window.chrome
-        ? window.chrome.runtime
-        : undefined;
+const messenger = new Messenger();
 
 export default defineContentScript({
     matches: ['*://*.twitter.com/*', '*://*.x.com/*'],
@@ -19,17 +15,6 @@ export default defineContentScript({
         processPageForTags();
     },
 });
-
-interface UserTag {
-    username: string;
-    tag: string;
-    color: string;
-}
-
-interface MessageRequest {
-    type: 'GET_TAG' | 'REFRESH_TAGS';
-    username?: string;
-}
 
 // Process the page to find and display tags
 async function processPageForTags() {
@@ -78,25 +63,13 @@ function extractUsername(element: Element): string | null {
 
 // Display tag for a specific element
 async function displayTagForElement(element: Element, username: string) {
-    if (!runtime) return;
-
     try {
-        const response = await new Promise<{ tag?: UserTag }>(
-            (resolve, reject) => {
-                runtime.sendMessage(
-                    { type: 'GET_TAG', username },
-                    (response: { tag?: UserTag }) => {
-                        if (runtime.lastError) {
-                            reject(runtime.lastError);
-                        } else {
-                            resolve(response);
-                        }
-                    }
-                );
-            }
+        const tagsByUsername = await messenger.sendMessageToRuntime(
+            MessageType.LIST_TAGS_BY_USERNAME,
+            { username }
         );
 
-        const tag = response.tag;
+        const tag = tagsByUsername[0];
         if (!tag) return;
 
         // Check if tag is already displayed
@@ -112,7 +85,7 @@ async function displayTagForElement(element: Element, username: string) {
         const tagElement = document.createElement('span');
         tagElement.className = 'x-account-tag';
         tagElement.setAttribute('data-username', username);
-        tagElement.textContent = tag.tag;
+        tagElement.textContent = tag.name;
         tagElement.style.cssText = `
       background-color: ${tag.color};
       color: white;
@@ -261,9 +234,9 @@ function cleanup() {
 window.addEventListener('beforeunload', cleanup);
 
 // Listen for messages from background script
-if (runtime) {
-    runtime.onMessage.addListener((message: MessageRequest) => {
-        if (message.type === 'REFRESH_TAGS') {
+messenger.onRuntimeMessage(message => {
+    switch (message.type) {
+        case MessageType.REFRESH_TAGS: {
             // Remove existing tags and reprocess
             document
                 .querySelectorAll('.x-account-tag')
@@ -274,6 +247,7 @@ if (runtime) {
             lastProcessTime = 0;
 
             processPageForTags();
+            break;
         }
-    });
-}
+    }
+});
