@@ -1,5 +1,9 @@
 import { CreateTag, Tag } from '../../messenger.js';
 
+enum IndexName {
+    Username = 'username_idx',
+}
+
 // Storage service for tags
 export class TagRepository {
     private db: IDBDatabase | null = null;
@@ -20,8 +24,13 @@ export class TagRepository {
         request.onupgradeneeded = (event: IDBVersionChangeEvent) => {
             const db = (event.target as IDBOpenDBRequest).result;
             if (!db.objectStoreNames.contains(this.storeName)) {
-                db.createObjectStore(this.storeName, {
+                const store = db.createObjectStore(this.storeName, {
                     keyPath: 'id',
+                });
+
+                // Create index
+                store.createIndex(IndexName.Username, 'username', {
+                    unique: false,
                 });
             }
         };
@@ -55,12 +64,13 @@ export class TagRepository {
 
     async listByUsername(username: string): Promise<Tag[]> {
         const store = await this.getStore();
+        const index = store.index(IndexName.Username);
 
-        const request = store.getAll();
+        const request = index.getAll(username);
 
         const tags = (await this.waitFor(request)) as Tag[];
 
-        return tags.filter(tag => tag.username === username);
+        return tags;
     }
 
     async get(id: string): Promise<Tag | null> {
