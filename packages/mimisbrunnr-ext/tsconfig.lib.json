@@ -11,7 +11,7 @@
     "jsx": "react-jsx",
     "lib": ["es2022", "dom", "dom.iterable"]
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "types.d.ts", ".wxt/types"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", ".wxt/types"],
   "references": [],
   "exclude": [
     "vite.config.ts",
