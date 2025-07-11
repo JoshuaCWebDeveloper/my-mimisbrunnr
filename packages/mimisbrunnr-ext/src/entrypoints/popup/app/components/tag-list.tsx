@@ -161,7 +161,7 @@ export const TagList = ({
                 </StyledEmptyState>
             ) : (
                 tags.map(tag => (
-                    <div key={tag.username} className="tag-item">
+                    <div key={tag.id} className="tag-item">
                         <div className="tag-info">
                             <span className="username">@{tag.username}</span>
                             <span
