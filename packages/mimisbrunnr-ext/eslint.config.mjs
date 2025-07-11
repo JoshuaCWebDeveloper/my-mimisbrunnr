@@ -1,4 +1,5 @@
-import baseConfig from '../../eslint.config.mjs';
+import baseConfig, { baseOverrides } from '../../eslint.config.mjs';
+import nx from '@nx/eslint-plugin';
 
 export default [
     {
@@ -8,6 +9,7 @@ export default [
         ],
     },
     ...baseConfig,
+    ...nx.configs['flat/react'],
     {
         files: ['**/*.json'],
         rules: {},
@@ -15,4 +17,5 @@ export default [
             parser: await import('jsonc-eslint-parser'),
         },
     },
+    ...baseOverrides,
 ];
