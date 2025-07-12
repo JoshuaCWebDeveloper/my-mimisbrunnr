@@ -8,51 +8,27 @@ import { AddTag, TagValue } from './add-tag.js';
 import { TagList } from './tag-list.js';
 
 // Styled Components
-const StyledApp = styled.div`
+const StyledTagManager = styled.div`
     display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+    position: relative;
+    z-index: 2;
+`;
 
-    .header {
-        padding: var(--space-4) var(--space-4) var(--space-3);
-        border-bottom: 1px solid var(--color-border-primary);
-        background: var(--color-surface);
-
-        .title {
-            font-size: var(--font-size-base);
-            font-weight: 700;
-            color: var(--color-text-primary);
-            margin: 0;
-            letter-spacing: -0.01em;
-        }
-
-        .subtitle {
-            font-size: var(--font-size-xs);
-            color: var(--color-text-secondary);
-            margin: var(--space-1) 0 0;
-            line-height: 1.3;
-            font-weight: 500;
-        }
-    }
-
-    .content {
-        flex: 1;
-        padding: var(--space-3);
-        overflow-y: auto;
-        display: flex;
-        flex-direction: column;
-        gap: var(--space-3);
-    }
-
-    .loading-container {
-        display: flex;
-        justify-content: center;
-        padding: var(--space-4);
-    }
+const StyledLoadingContainer = styled.div`
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-8);
+    gap: var(--space-3);
 
     .loading-spinner {
-        width: 14px;
-        height: 14px;
-        border: 1px solid var(--color-border-primary);
-        border-top: 1px solid var(--color-primary);
+        width: 20px;
+        height: 20px;
+        border: 2px solid var(--color-border-primary);
+        border-top: 2px solid var(--color-primary);
         border-radius: 50%;
         animation: spin 1s linear infinite;
 
@@ -65,33 +41,101 @@ const StyledApp = styled.div`
             }
         }
     }
+
+    .loading-text {
+        font-size: var(--font-size-sm);
+        color: var(--color-text-secondary);
+        font-weight: var(--font-weight-medium);
+    }
 `;
 
 const StyledNotOnXMessage = styled.div`
     text-align: center;
-    padding: var(--space-4) var(--space-3);
-    background: var(--color-surface);
+    padding: var(--space-8) var(--space-6);
+    background: var(--gradient-surface);
     border: 1px solid var(--color-border-primary);
-    border-radius: var(--radius-md);
-    margin: var(--space-3);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-lg);
+    position: relative;
+    overflow: hidden;
 
-    .icon {
-        font-size: 40px;
-        margin-bottom: var(--space-2);
-        opacity: 0.6;
+    &::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: var(--glass-bg);
+        backdrop-filter: var(--backdrop-blur);
+        z-index: -1;
+    }
+
+    .icon-container {
+        width: 64px;
+        height: 64px;
+        margin: 0 auto var(--space-4);
+        background: var(--gradient-primary);
+        border-radius: var(--radius-2xl);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: var(--shadow-lg);
+        position: relative;
+        overflow: hidden;
+
+        &::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(
+                135deg,
+                rgba(255, 255, 255, 0.3) 0%,
+                transparent 50%
+            );
+        }
+
+        .icon {
+            font-size: 28px;
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+        }
     }
 
     .title {
-        font-size: var(--font-size-sm);
-        font-weight: 600;
+        font-size: var(--font-size-lg);
+        font-weight: var(--font-weight-bold);
         color: var(--color-text-primary);
-        margin-bottom: var(--space-1);
+        margin-bottom: var(--space-2);
+        letter-spacing: -0.01em;
     }
 
     .text {
         color: var(--color-text-secondary);
-        font-size: var(--font-size-xs);
-        line-height: 1.4;
+        font-size: var(--font-size-sm);
+        line-height: 1.5;
+        font-weight: var(--font-weight-medium);
+    }
+`;
+
+const StyledErrorMessage = styled.div`
+    padding: var(--space-4) var(--space-5);
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: var(--radius-lg);
+    color: var(--color-danger);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    margin-bottom: var(--space-4);
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+
+    &::before {
+        content: '⚠️';
+        font-size: var(--font-size-base);
     }
 `;
 
@@ -164,44 +208,33 @@ export const TagManager = () => {
 
     if (isOnX === null) {
         return (
-            <StyledApp>
-                <div className="header">
-                    <h1 className="title">Loading...</h1>
-                </div>
-                <div className="content">
-                    <div className="loading-container">
-                        <div className="loading-spinner" />
-                    </div>
-                </div>
-            </StyledApp>
+            <StyledLoadingContainer role="status" aria-busy="true">
+                <div className="loading-spinner" />
+                <div className="loading-text">Checking current tab...</div>
+            </StyledLoadingContainer>
         );
     }
 
     if (!isOnX) {
         return (
-            <StyledApp>
-                <div className="header">
-                    <h1 className="title">X Account Tags</h1>
-                    <p className="subtitle">Organize X.com accounts</p>
+            <StyledNotOnXMessage>
+                <div className="icon-container">
+                    <span className="icon" role="img" aria-label="bird">
+                        🐦
+                    </span>
                 </div>
-                <StyledNotOnXMessage>
-                    <div className="icon">
-                        <span role="img" aria-label="bird">
-                            🐦
-                        </span>
-                    </div>
-                    <h2 className="title">Navigate to X.com</h2>
-                    <p className="text">Visit X.com to manage account tags.</p>
-                </StyledNotOnXMessage>
-            </StyledApp>
+                <h2 className="title">Navigate to X.com</h2>
+                <p className="text">
+                    Visit X.com to manage account tags and organize your
+                    followed accounts.
+                </p>
+            </StyledNotOnXMessage>
         );
     }
 
     return (
-        <StyledApp>
-            <h2 className="subtitle">Organize X.com accounts</h2>
-
-            <p className="error">{error?.message}</p>
+        <StyledTagManager>
+            {error && <StyledErrorMessage>{error.message}</StyledErrorMessage>}
 
             <AddTag
                 value={activeTag}
@@ -218,6 +251,6 @@ export const TagManager = () => {
                 onError={handleError}
                 onDelete={handleDelete}
             />
-        </StyledApp>
+        </StyledTagManager>
     );
 };

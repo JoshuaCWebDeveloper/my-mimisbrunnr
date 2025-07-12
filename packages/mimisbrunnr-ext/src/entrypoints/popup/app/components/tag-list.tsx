@@ -1,119 +1,311 @@
+import { faPencil, faTags } from '@fortawesome/free-solid-svg-icons';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { useMutation } from '@tanstack/react-query';
 import { styled } from 'styled-components';
 import { Tag } from '../../../../messenger.js';
 import { useTagManager } from '../context/tag-manager.js';
+import { ConfirmableDelete } from './shared/confirmable-delete.js';
 
 const StyledTagList = styled.div`
     display: flex;
     flex-direction: column;
-    gap: var(--space-1);
+    gap: var(--space-3);
+    position: relative;
 
-    .tag-item {
+    .list-header {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: var(--space-2) var(--space-3);
-        background: var(--color-surface);
-        border: 1px solid var(--color-border-primary);
-        border-radius: var(--radius-sm);
-        transition: all var(--transition-fast);
+        margin-bottom: var(--space-2);
 
-        &:hover {
-            border-color: var(--color-border-secondary);
-            background: var(--color-surface-hover);
+        .list-title {
+            font-size: var(--font-size-sm);
+            font-weight: var(--font-weight-bold);
+            color: var(--color-text-primary);
+            margin: 0;
+            letter-spacing: -0.01em;
+        }
 
-            .tag-actions {
-                opacity: 1;
-            }
+        .tag-count {
+            font-size: var(--font-size-xs);
+            color: var(--color-text-tertiary);
+            background: var(--color-bg-tertiary);
+            padding: var(--space-1) var(--space-2);
+            border-radius: var(--radius-full);
+            font-weight: var(--font-weight-semibold);
         }
     }
 
-    .tag-info {
+    .tag-grid {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-2);
+        max-height: 280px;
+        overflow-y: auto;
+        padding-right: var(--space-1);
+    }
+`;
+
+const StyledTagItem = styled.div`
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-2);
+    margin-top: 1px;
+    background: var(--gradient-surface);
+    border: 1px solid var(--color-border-primary);
+    border-radius: var(--radius-lg);
+    transition: all var(--transition-fast);
+    position: relative;
+    overflow: hidden;
+    box-shadow: var(--shadow-xs);
+
+    &::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: var(--glass-bg);
+        backdrop-filter: var(--backdrop-blur);
+        z-index: -1;
+        opacity: 0;
+        transition: opacity var(--transition-fast);
+    }
+
+    &:hover {
+        border-color: var(--color-border-hover);
+        transform: translateY(-1px);
+        box-shadow: var(--shadow-md);
+
+        &::before {
+            opacity: 1;
+        }
+
+        .tag-actions {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+
+    .tag-content {
         display: flex;
         align-items: center;
-        gap: var(--space-2);
+        gap: var(--space-3);
         flex: 1;
         min-width: 0;
     }
 
+    .username-container {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-1);
+        min-width: 0;
+        flex: 1;
+    }
+
     .username {
-        font-weight: 600;
+        font-weight: var(--font-weight-semibold);
         color: var(--color-text-primary);
-        font-size: var(--font-size-xs);
+        font-size: var(--font-size-sm);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-        min-width: 60px;
-        max-width: 80px;
+        font-family: var(--font-family-mono);
+    }
+
+    .username-prefix {
+        color: var(--color-text-tertiary);
+        font-weight: var(--font-weight-normal);
     }
 
     .tag-badge {
         color: var(--color-text-inverse);
-        padding: 2px var(--space-2);
-        border-radius: var(--radius-sm);
-        font-size: 10px;
-        font-weight: 700;
+        padding: 0 var(--space-2);
+        border-radius: var(--radius-full);
+        font-size: var(--font-size-xs);
+        font-weight: var(--font-weight-normal);
         letter-spacing: 0.02em;
-        text-transform: uppercase;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-        max-width: 80px;
+        max-width: 100px;
+        box-shadow: var(--shadow-sm);
+        position: relative;
+
+        &::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(
+                135deg,
+                rgba(255, 255, 255, 0.2) 0%,
+                transparent 50%
+            );
+            border-radius: inherit;
+        }
     }
 
     .tag-actions {
         display: flex;
-        gap: var(--space-1);
-        opacity: 0.6;
-        transition: opacity var(--transition-fast);
+        gap: var(--space-2);
+        opacity: 0;
+        transform: translateX(8px);
+        transition: all var(--transition-fast);
     }
 
-    .icon-button {
-        width: 24px;
-        height: 24px;
-        border-radius: var(--radius-sm);
-        background: var(--color-bg-secondary);
-        border: 1px solid var(--color-border-primary);
+    .action-button {
+        width: var(--space-4);
+        height: var(--space-4);
+        background: var(--color-surface);
+        border: 0;
         color: var(--color-text-secondary);
         display: flex;
         align-items: center;
         justify-content: center;
         transition: all var(--transition-fast);
         cursor: pointer;
-        font-size: 11px;
+        font-size: var(--font-size-sm);
+        position: relative;
+        overflow: hidden;
+
+        &::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(
+                135deg,
+                rgba(255, 255, 255, 0.1) 0%,
+                transparent 50%
+            );
+            opacity: 0;
+            transition: opacity var(--transition-fast);
+        }
 
         &:hover:not(:disabled) {
-            background: var(--color-surface-hover);
-            border-color: var(--color-border-secondary);
+            background: var(--color-surface-elevated);
             color: var(--color-text-primary);
+
+            &::before {
+                opacity: 1;
+            }
+        }
+
+        &.edit-button:hover {
+            border-color: var(--color-primary);
+            color: var(--color-primary);
+        }
+
+        &.delete-button:hover {
+            border-color: var(--color-danger);
+            color: var(--color-danger);
         }
 
         &:focus {
             outline: none;
-            box-shadow: 0 0 0 1px var(--color-primary);
         }
 
         &:disabled {
             opacity: 0.6;
             cursor: not-allowed;
+            transform: none !important;
         }
     }
 `;
 
 const StyledEmptyState = styled.div`
     text-align: center;
-    padding: var(--space-4) var(--space-3);
-    color: var(--color-text-secondary);
+    padding: var(--space-8) var(--space-6);
+    background: var(--gradient-surface);
+    border: 1px solid var(--color-border-primary);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-lg);
+    position: relative;
+    overflow: hidden;
 
-    .icon {
-        font-size: 32px;
+    &::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: var(--glass-bg);
+        backdrop-filter: var(--backdrop-blur);
+        z-index: -1;
+    }
+
+    .icon-container {
+        width: 56px;
+        height: 56px;
+        margin: 0 auto var(--space-4);
+        background: var(--color-bg-tertiary);
+        border-radius: var(--radius-2xl);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: var(--shadow-sm);
+
+        .icon {
+            font-size: 24px;
+            opacity: 0.6;
+        }
+    }
+
+    .title {
+        font-size: var(--font-size-md);
+        font-weight: var(--font-weight-bold);
+        color: var(--color-text-primary);
         margin-bottom: var(--space-2);
-        opacity: 0.5;
+        letter-spacing: -0.01em;
     }
 
     .text {
-        font-size: var(--font-size-xs);
-        line-height: 1.4;
+        color: var(--color-text-secondary);
+        font-size: var(--font-size-sm);
+        line-height: 1.5;
+        font-weight: var(--font-weight-medium);
+    }
+`;
+
+const StyledLoadingContainer = styled.div`
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-6);
+    gap: var(--space-3);
+
+    .loading-spinner {
+        width: 24px;
+        height: 24px;
+        border: 2px solid var(--color-border-primary);
+        border-top: 2px solid var(--color-primary);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    }
+
+    .loading-text {
+        font-size: var(--font-size-sm);
+        color: var(--color-text-secondary);
+        font-weight: var(--font-weight-medium);
     }
 `;
 
@@ -144,26 +336,46 @@ export const TagList = ({
 
     const isLoading = loading || isDeleting;
 
-    return (
-        <StyledTagList className={`tag-list ${className}`}>
-            {isLoading ? (
-                <div className="loading-container">
-                    <div className="loading-spinner" />
+    if (isLoading) {
+        return (
+            <StyledLoadingContainer>
+                <div className="loading-spinner" />
+                <div className="loading-text">Loading tags...</div>
+            </StyledLoadingContainer>
+        );
+    }
+
+    if (tags.length === 0) {
+        return (
+            <StyledEmptyState>
+                <div className="icon-container">
+                    <FontAwesomeIcon icon={faTags} />
                 </div>
-            ) : tags.length === 0 && !isLoading ? (
-                <StyledEmptyState>
-                    <div className="icon">
-                        <span role="img" aria-label="tag">
-                            🏷️
-                        </span>
-                    </div>
-                    <p className="text">No tags yet. Add one above.</p>
-                </StyledEmptyState>
-            ) : (
-                tags.map(tag => (
-                    <div key={tag.id} className="tag-item">
-                        <div className="tag-info">
-                            <span className="username">@{tag.username}</span>
+                <h3 className="title">No tags yet</h3>
+                <p className="text">
+                    Create your first tag to start organizing X accounts.
+                </p>
+            </StyledEmptyState>
+        );
+    }
+
+    return (
+        <StyledTagList className={`tag-list ${className || ''}`}>
+            <div className="list-header">
+                <h3 className="list-title">Your Tags</h3>
+                <span className="tag-count">{tags.length}</span>
+            </div>
+
+            <div className="tag-grid">
+                {tags.map(tag => (
+                    <StyledTagItem key={tag.id}>
+                        <div className="tag-content">
+                            <div className="username-container">
+                                <span className="username">
+                                    <span className="username-prefix">@</span>
+                                    {tag.username}
+                                </span>
+                            </div>
                             <span
                                 className="tag-badge"
                                 style={{ backgroundColor: tag.color }}
@@ -173,27 +385,25 @@ export const TagList = ({
                         </div>
                         <div className="tag-actions">
                             <button
-                                className="icon-button"
+                                className="action-button edit-button"
                                 onClick={() => onEdit?.(tag)}
                                 disabled={isLoading}
-                                title="Edit"
+                                title="Edit tag"
                             >
-                                <span role="img" aria-label="edit">
-                                    ✏️
-                                </span>
+                                <FontAwesomeIcon icon={faPencil} />
                             </button>
-                            <button
-                                className="icon-button"
-                                onClick={() => deleteTag(tag)}
+
+                            <ConfirmableDelete
+                                className="action-button delete-button"
+                                ariaLabel="Delete tag"
+                                onDelete={() => deleteTag(tag)}
                                 disabled={isLoading}
-                                title="Delete"
-                            >
-                                🗑️
-                            </button>
+                                title="Delete tag"
+                            />
                         </div>
-                    </div>
-                ))
-            )}
+                    </StyledTagItem>
+                ))}
+            </div>
         </StyledTagList>
     );
 };
