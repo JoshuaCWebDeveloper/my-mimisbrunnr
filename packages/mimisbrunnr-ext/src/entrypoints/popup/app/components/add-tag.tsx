@@ -7,65 +7,144 @@ import { useTagManager } from '../context/tag-manager.js';
 const StyledForm = styled.form`
     display: flex;
     flex-direction: column;
-    gap: var(--space-2);
-    padding: var(--space-3);
-    background: var(--color-surface);
+    gap: var(--space-3);
+    padding: var(--space-2);
+    background: var(--gradient-surface);
     border: 1px solid var(--color-border-primary);
     border-radius: var(--radius-md);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    box-shadow: var(--shadow-lg);
+    position: relative;
+    overflow: hidden;
+
+    &::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: var(--glass-bg);
+        backdrop-filter: var(--backdrop-blur);
+        z-index: -1;
+    }
+
+    .form-header {
+        .form-title {
+            font-size: var(--font-size-md);
+            font-weight: var(--font-weight-bold);
+            color: var(--color-text-primary);
+            margin: 0 0 var(--space-1);
+            letter-spacing: -0.01em;
+        }
+
+        .form-subtitle {
+            font-size: var(--font-size-xs);
+            color: var(--color-text-tertiary);
+            margin: 0;
+            font-weight: var(--font-weight-medium);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+    }
+
+    .input-group {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-3);
+    }
 
     .input-row {
         display: flex;
-        gap: var(--space-2);
-        align-items: center;
+        gap: var(--space-1);
+        align-items: flex-end;
+        width: 100%;
+    }
+
+    .input-field {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-1);
+        min-width: 0;
+    }
+
+    .input-label {
+        font-size: var(--font-size-xs);
+        font-weight: var(--font-weight-semibold);
+        color: var(--color-text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
     }
 
     .input {
-        flex: 1;
-        padding: var(--space-2) var(--space-3);
-        background: var(--color-bg-secondary);
+        padding: var(--space-1) var(--space-2);
+        background: var(--color-surface);
         border: 1px solid var(--color-border-primary);
         border-radius: var(--radius-sm);
         color: var(--color-text-primary);
-        font-size: var(--font-size-xs);
-        font-weight: 500;
+        font-size: var(--font-size-sm);
+        font-weight: var(--font-weight-medium);
         transition: all var(--transition-fast);
+        box-shadow: var(--shadow-xs);
 
         &::placeholder {
-            color: var(--color-text-tertiary);
-            font-weight: 400;
+            color: var(--color-text-muted);
+            font-weight: var(--font-weight-normal);
         }
 
         &:focus {
             outline: none;
             border-color: var(--color-primary);
-            background: var(--color-surface);
-            box-shadow: 0 0 0 1px var(--color-primary);
+            background: var(--color-surface-elevated);
+            box-shadow: var(--shadow-sm), 0 0 0 3px rgba(99, 102, 241, 0.1);
+            transform: translateY(-1px);
         }
 
         &:disabled {
             opacity: 0.6;
             cursor: not-allowed;
+            background: var(--color-bg-tertiary);
         }
     }
 
+    .color-input-container {
+        height: 100%;
+        flex: 0 0 var(--space-10);
+    }
+
     .color-input {
-        width: 28px;
-        height: 28px;
-        border: 1px solid var(--color-border-primary);
+        height: 100%;
+        width: 100%;
+        border: 2px solid var(--color-border-primary);
         border-radius: var(--radius-sm);
         cursor: pointer;
         background: none;
         transition: all var(--transition-fast);
+        box-shadow: var(--shadow-sm);
+        position: relative;
+        overflow: hidden;
 
-        &:hover {
-            border-color: var(--color-border-secondary);
+        &::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border-radius: inherit;
+            box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+        }
+
+        &:hover:not(:disabled) {
+            border-color: var(--color-border-hover);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
         }
 
         &:focus {
             outline: none;
             border-color: var(--color-primary);
-            box-shadow: 0 0 0 1px var(--color-primary);
+            box-shadow: var(--shadow-md), 0 0 0 3px rgba(99, 102, 241, 0.1);
         }
 
         &:disabled {
@@ -76,87 +155,111 @@ const StyledForm = styled.form`
 
     .button-row {
         display: flex;
-        gap: var(--space-2);
-        margin-top: var(--space-1);
+        gap: var(--space-3);
     }
 
     .button {
-        padding: var(--space-2) var(--space-3);
+        flex: 1;
+        padding: var(--space-1) var(--space-2);
         border-radius: var(--radius-sm);
-        font-size: var(--font-size-xs);
-        font-weight: 600;
+        font-size: var(--font-size-sm);
+        font-weight: var(--font-weight-semibold);
         transition: all var(--transition-fast);
         cursor: pointer;
         display: flex;
         align-items: center;
         justify-content: center;
-        min-height: 28px;
         border: 1px solid;
+        position: relative;
+        overflow: hidden;
 
-        &.primary {
-            background: var(--color-primary);
-            color: var(--color-text-inverse);
-            border-color: var(--color-primary);
-
-            &:hover:not(:disabled) {
-                background: var(--color-primary-hover);
-                border-color: var(--color-primary-hover);
-            }
-
-            &:focus {
-                outline: none;
-                box-shadow: 0 0 0 1px var(--color-surface),
-                    0 0 0 3px var(--color-primary);
-            }
+        &::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(
+                135deg,
+                rgba(255, 255, 255, 0.1) 0%,
+                transparent 50%
+            );
+            opacity: 0;
+            transition: opacity var(--transition-fast);
         }
 
-        &.danger {
-            background: var(--color-danger);
+        &:hover::before {
+            opacity: 1;
+        }
+
+        &.primary {
+            background: var(--gradient-primary);
             color: var(--color-text-inverse);
-            border-color: var(--color-danger);
+            border-color: transparent;
+            box-shadow: var(--shadow-md);
 
             &:hover:not(:disabled) {
-                background: #d91828;
-                border-color: #d91828;
+                transform: translateY(-1px);
+                box-shadow: var(--shadow-lg);
+            }
+
+            &:active {
+                transform: translateY(0);
+                box-shadow: var(--shadow-sm);
             }
 
             &:focus {
                 outline: none;
-                box-shadow: 0 0 0 1px var(--color-surface),
-                    0 0 0 3px var(--color-danger);
+                box-shadow: var(--shadow-lg), 0 0 0 3px rgba(99, 102, 241, 0.3);
             }
         }
 
         &.secondary {
             background: var(--color-surface);
-            color: var(--color-text-primary);
+            color: var(--color-text-secondary);
             border-color: var(--color-border-primary);
+            box-shadow: var(--shadow-xs);
 
             &:hover:not(:disabled) {
                 background: var(--color-surface-hover);
-                border-color: var(--color-border-secondary);
+                border-color: var(--color-border-hover);
+                color: var(--color-text-primary);
+                transform: translateY(-1px);
+                box-shadow: var(--shadow-sm);
             }
 
             &:focus {
                 outline: none;
-                box-shadow: 0 0 0 1px var(--color-primary);
+                border-color: var(--color-primary);
+                box-shadow: var(--shadow-sm), 0 0 0 3px rgba(99, 102, 241, 0.1);
             }
         }
 
         &:disabled {
             opacity: 0.6;
             cursor: not-allowed;
+            transform: none !important;
+            box-shadow: var(--shadow-xs) !important;
         }
-    }
 
-    .error-message {
-        padding: var(--space-2) var(--space-3);
-        background: rgba(244, 33, 46, 0.08);
-        border: 1px solid rgba(244, 33, 46, 0.2);
-        border-radius: var(--radius-sm);
-        color: var(--color-danger);
-        font-size: var(--font-size-xs);
-        margin-top: var(--space-2);
+        .loading-spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top: 2px solid currentColor;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+
+            @keyframes spin {
+                0% {
+                    transform: rotate(0deg);
+                }
+                100% {
+                    transform: rotate(360deg);
+                }
+            }
+        }
     }
 `;
 
@@ -213,48 +316,71 @@ export const AddTag = ({
 
     return (
         <StyledForm onSubmit={handleSubmit}>
-            <div className="input-row">
-                <input
-                    className="input"
-                    name="username"
-                    placeholder="Username"
-                    value={value.username || ''}
-                    onChange={handleChange}
-                    disabled={isSaving}
-                    required
-                />
-                <input
-                    className="input"
-                    name="name"
-                    placeholder="Tag"
-                    value={value.name || ''}
-                    onChange={handleChange}
-                    disabled={isSaving}
-                    required
-                />
-                <input
-                    className="color-input"
-                    name="color"
-                    type="color"
-                    value={value.color || defaultColor}
-                    onChange={handleChange}
-                    disabled={isSaving}
-                    title="Color"
-                />
+            <div className="form-header">
+                <h3 className="form-title">
+                    {value.id ? 'Edit Tag' : 'Add New Tag'}
+                </h3>
+                <p className="form-subtitle">
+                    {value.id
+                        ? 'Update tag details'
+                        : 'Create a tag for an X account'}
+                </p>
+            </div>
+
+            <div className="input-group">
+                <div className="input-row">
+                    <div className="input-field">
+                        <input
+                            className="input"
+                            name="username"
+                            placeholder="Username"
+                            value={value.username || ''}
+                            onChange={handleChange}
+                            disabled={isSaving}
+                            required
+                        />
+                    </div>
+                    <div className="input-field">
+                        <input
+                            className="input"
+                            name="name"
+                            placeholder="Tag Name"
+                            value={value.name || ''}
+                            onChange={handleChange}
+                            disabled={isSaving}
+                            required
+                        />
+                    </div>
+                    <div className="color-input-container">
+                        <input
+                            className="color-input"
+                            name="color"
+                            type="color"
+                            value={value.color || defaultColor}
+                            onChange={handleChange}
+                            disabled={isSaving}
+                            title="Choose tag color"
+                        />
+                    </div>
+                </div>
             </div>
 
             <div className="button-row">
                 <button
                     className="button primary"
                     type="submit"
-                    disabled={isSaving}
+                    disabled={
+                        isSaving ||
+                        !value.username?.trim() ||
+                        !value.name?.trim()
+                    }
                 >
                     {isSaving ? (
                         <div className="loading-spinner" />
                     ) : value.id ? (
-                        'Update'
+                        'Update Tag'
                     ) : (
-                        'Add'
+                        'Add Tag'
                     )}
                 </button>
                 {value.id && (

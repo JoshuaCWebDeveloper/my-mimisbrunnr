@@ -9,7 +9,7 @@ export class TagRepository {
     private db: IDBDatabase | null = null;
     private readonly dbName = 'my-mimisbrunnr';
     private readonly storeName = 'tags';
-    private readonly version = 1;
+    private readonly version = 3;
 
     private waitFor<T>(request: IDBRequest): Promise<T> {
         return new Promise<T>((resolve, reject) => {
@@ -21,14 +21,22 @@ export class TagRepository {
     private async init(): Promise<void> {
         const request = indexedDB.open(this.dbName, this.version);
 
-        request.onupgradeneeded = (event: IDBVersionChangeEvent) => {
-            const db = (event.target as IDBOpenDBRequest).result;
+        request.onupgradeneeded = async (event: IDBVersionChangeEvent) => {
+            const openDbRequest = event.target as IDBOpenDBRequest;
+            const db = openDbRequest.result;
+
+            let store: IDBObjectStore | undefined;
             if (!db.objectStoreNames.contains(this.storeName)) {
-                const store = db.createObjectStore(this.storeName, {
+                store = db.createObjectStore(this.storeName, {
                     keyPath: 'id',
                 });
+            } else {
+                // Use the transaction provided by the event to access the existing store
+                store = openDbRequest.transaction?.objectStore(this.storeName);
+            }
 
-                // Create index
+            // Now you can safely check/create the index
+            if (store && !store.indexNames.contains(IndexName.Username)) {
                 store.createIndex(IndexName.Username, 'username', {
                     unique: false,
                 });
