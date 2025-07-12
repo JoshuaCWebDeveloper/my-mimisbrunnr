@@ -299,9 +299,10 @@ export const AddTag = ({
             if (!value.username || !value.name) return;
 
             const newTag = {
+                color: defaultColor,
+                ...value,
                 username: value.username.trim().toLowerCase(),
-                name: value.name,
-                color: value.color || defaultColor,
+                name: value.name.trim(),
             };
 
             const tag = await saveTag(newTag);
