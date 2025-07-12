@@ -208,7 +208,7 @@ export const TagManager = () => {
 
     if (isOnX === null) {
         return (
-            <StyledLoadingContainer>
+            <StyledLoadingContainer role="status" aria-busy="true">
                 <div className="loading-spinner" />
                 <div className="loading-text">Checking current tab...</div>
             </StyledLoadingContainer>
