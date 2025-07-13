@@ -7,42 +7,42 @@ on:
 jobs:
   ci:
     uses: ./.github/workflows/ci-checks.yml
-  
+
   release:
     needs: ci
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-          
+
       - name: Install dependencies
         run: npm ci
-        
+
       - name: Build production extension
         run: npx nx run mimisbrunnr-ext:build
-        
+
       - name: Create Chrome extension zip
         run: npx nx run mimisbrunnr-ext:zip
-        
+
       - name: Build Firefox extension
         run: npx nx run mimisbrunnr-ext:build:firefox
-        
+
       - name: Create Firefox extension zip
         run: npx nx run mimisbrunnr-ext:zip:firefox
-        
+
       - name: Get version from package.json
         id: package-version
         run: echo "version=$(node -p "require('./packages/mimisbrunnr-ext/package.json').version")" >> $GITHUB_OUTPUT
-        
+
       - name: Create release tag
         id: create-tag
         run: |
@@ -50,17 +50,17 @@ jobs:
           git config --local user.name "GitHub Action"
           git tag "v${{ steps.package-version.outputs.version }}"
           git push origin "v${{ steps.package-version.outputs.version }}"
-          
+
       - name: Create GitHub Release
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: "v${{ steps.package-version.outputs.version }}"
-          release_name: "Release v${{ steps.package-version.outputs.version }}"
+          tag_name: 'v${{ steps.package-version.outputs.version }}'
+          release_name: 'Release v${{ steps.package-version.outputs.version }}'
           draft: false
           prerelease: false
-          
+
       - name: Upload Chrome extension
         uses: actions/upload-release-asset@v1
         env:
@@ -70,7 +70,7 @@ jobs:
           asset_path: ./packages/mimisbrunnr-ext/.output/chrome-mv3-prod.zip
           asset_name: mimisbrunnr-ext-chrome-v${{ steps.package-version.outputs.version }}.zip
           asset_content_type: application/zip
-          
+
       - name: Upload Firefox extension
         uses: actions/upload-release-asset@v1
         env:
