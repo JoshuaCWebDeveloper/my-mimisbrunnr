@@ -431,7 +431,7 @@ export const TagList = ({
 
             <div className="tag-grid">
                 {filteredTags.length === 0 && filterUsername.trim() ? (
-                    <StyledEmptyState>
+                    <StyledEmptyState aria-live="polite">
                         <div className="icon-container">
                             <FontAwesomeIcon icon={faSearch} />
                         </div>
