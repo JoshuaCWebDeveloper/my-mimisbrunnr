@@ -4,4 +4,9 @@ import { defineConfig } from 'wxt';
 export default defineConfig({
     modules: ['@wxt-dev/module-react'],
     srcDir: 'src',
+    zip: {
+        artifactTemplate:
+            'mimisbrunnr-ext-{{browser}}-{{manifestVersion}}-{{mode}}.zip',
+        sourcesTemplate: 'mimisbrunnr-source-{{mode}}.zip',
+    },
 });

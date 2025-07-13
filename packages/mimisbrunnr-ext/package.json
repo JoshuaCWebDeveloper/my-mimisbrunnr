@@ -23,57 +23,57 @@
     "targets": {
       "dev": {
         "executor": "nx:run-commands",
+        "defaultConfiguration": "chrome",
         "options": {
           "command": "wxt",
           "cwd": "packages/mimisbrunnr-ext"
-        }
-      },
-      "dev:firefox": {
-        "executor": "nx:run-commands",
-        "options": {
-          "command": "wxt -b firefox",
-          "cwd": "packages/mimisbrunnr-ext"
+        },
+        "configurations": {
+          "chrome": {
+            "command": "wxt -b chrome"
+          },
+          "firefox": {
+            "command": "wxt -b firefox"
+          }
         }
       },
       "build": {
         "executor": "nx:run-commands",
+        "defaultConfiguration": "chrome",
         "options": {
           "command": "wxt build",
           "cwd": "packages/mimisbrunnr-ext"
         },
         "outputs": [
           "{projectRoot}/dist"
-        ]
-      },
-      "build:firefox": {
-        "executor": "nx:run-commands",
-        "options": {
-          "command": "wxt build -b firefox",
-          "cwd": "packages/mimisbrunnr-ext"
-        },
-        "outputs": [
-          "{projectRoot}/dist"
-        ]
+        ],
+        "configurations": {
+          "chrome": {
+            "command": "wxt build -b chrome"
+          },
+          "firefox": {
+            "command": "wxt build -b firefox"
+          }
+        }
       },
       "zip": {
         "executor": "nx:run-commands",
+        "defaultConfiguration": "chrome",
         "options": {
           "command": "wxt zip",
           "cwd": "packages/mimisbrunnr-ext"
         },
         "dependsOn": [
           "build"
-        ]
-      },
-      "zip:firefox": {
-        "executor": "nx:run-commands",
-        "options": {
-          "command": "wxt zip -b firefox",
-          "cwd": "packages/mimisbrunnr-ext"
-        },
-        "dependsOn": [
-          "build:firefox"
-        ]
+        ],
+        "configurations": {
+          "chrome": {
+            "command": "wxt zip -b chrome"
+          },
+          "firefox": {
+            "command": "wxt zip -b firefox"
+          }
+        }
       },
       "compile": {
         "executor": "nx:run-commands",

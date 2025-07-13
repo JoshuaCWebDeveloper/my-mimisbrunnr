@@ -45,14 +45,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build production extension
-        run: npx nx run mimisbrunnr-ext:build
-
       - name: Create Chrome extension zip
         run: npx nx run mimisbrunnr-ext:zip
-
-      - name: Build Firefox extension
-        run: npx nx run mimisbrunnr-ext:build:firefox
 
       - name: Create Firefox extension zip
         run: npx nx run mimisbrunnr-ext:zip:firefox
@@ -86,8 +80,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create-release.outputs.upload_url }}
-          asset_path: ./packages/mimisbrunnr-ext/.output/chrome-mv3-prod.zip
-          asset_name: mimisbrunnr-ext-chrome-v${{ steps.package-version.outputs.version }}.zip
+          asset_path: ./packages/mimisbrunnr-ext/.output/mimisbrunnr-ext-chrome-mv3-production.zip
+          asset_name: my-mimisbrunnr-chrome-mv3-v${{ steps.package-version.outputs.version }}.zip
           asset_content_type: application/zip
 
       - name: Upload Firefox extension
@@ -96,6 +90,16 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create-release.outputs.upload_url }}
-          asset_path: ./packages/mimisbrunnr-ext/.output/firefox-mv2-prod.zip
-          asset_name: mimisbrunnr-ext-firefox-v${{ steps.package-version.outputs.version }}.zip
+          asset_path: ./packages/mimisbrunnr-ext/.output/mimisbrunnr-ext-firefox-mv2-production.zip
+          asset_name: my-mimisbrunnr-firefox-mv2-v${{ steps.package-version.outputs.version }}.zip
+          asset_content_type: application/zip
+
+      - name: Upload extension source
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create-release.outputs.upload_url }}
+          asset_path: ./packages/mimisbrunnr-ext/.output/mimisbrunnr-source-production.zip
+          asset_name: my-mimisbrunnr-source-v${{ steps.package-version.outputs.version }}.zip
           asset_content_type: application/zip
