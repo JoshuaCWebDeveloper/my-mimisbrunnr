@@ -10,8 +10,15 @@ jobs:
     outputs:
       base: ${{ steps.get-tag.outputs.tag }}
     steps:
-      - name: Checkout with full history
-        uses: ./.github/actions/checkout-full
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch all branches and tags
+        run: |
+          git fetch origin "+refs/heads/*:refs/remotes/origin/*"
+          git fetch origin "+refs/tags/*:refs/tags/*"
       - name: Get latest tag
         id: get-tag
         run: echo "tag=$(git describe --tags --abbrev=0 2>/dev/null || git rev-list --max-parents=0 HEAD)" >> $GITHUB_OUTPUT
