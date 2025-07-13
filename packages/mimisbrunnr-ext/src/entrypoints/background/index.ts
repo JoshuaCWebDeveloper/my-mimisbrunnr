@@ -2,6 +2,7 @@ import { MessageType, Messenger } from '../../messenger.js';
 import { TagRepository } from './tag-repository.js';
 
 export default defineBackground(() => {
+    // eslint-disable-next-line no-console
     console.log('X.com Account Tagger background script loaded');
 
     const messenger = new Messenger();
