@@ -4,29 +4,7 @@ on:
   workflow_call:
 
 jobs:
-  setup:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          
-      - name: Install dependencies
-        run: npm ci
-        
-      - name: Cache node_modules
-        uses: actions/cache@v3
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-  
   format-check:
-    needs: setup
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -45,7 +23,6 @@ jobs:
         run: npm run format:check
         
   lint:
-    needs: setup
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -64,7 +41,6 @@ jobs:
         run: npm run lint
         
   typecheck:
-    needs: setup
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -83,7 +59,6 @@ jobs:
         run: npx nx run-many --target=typecheck --all
         
   build:
-    needs: setup
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
