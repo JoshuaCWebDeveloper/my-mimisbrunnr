@@ -8,22 +8,17 @@ on:
         required: true
         type: string
 
-# YAML anchor for common checkout steps
-x-checkout-steps: &checkout-steps
-  - name: Checkout code
-    uses: actions/checkout@v4
-    with:
-      fetch-depth: 0
-  - name: Fetch all branches and tags
-    run: |
-      git fetch origin "+refs/heads/*:refs/remotes/origin/*"
-      git fetch origin "+refs/tags/*:refs/tags/*"
-
 jobs:
   format-check:
     runs-on: ubuntu-latest
     steps:
-      <<: *checkout-steps
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch all branches and tags
+        uses: ./.github/actions/fetch-refs
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -40,7 +35,13 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      <<: *checkout-steps
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch all branches and tags
+        uses: ./.github/actions/fetch-refs
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -57,7 +58,13 @@ jobs:
   typecheck:
     runs-on: ubuntu-latest
     steps:
-      <<: *checkout-steps
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch all branches and tags
+        uses: ./.github/actions/fetch-refs
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -74,7 +81,13 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      <<: *checkout-steps
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch all branches and tags
+        uses: ./.github/actions/fetch-refs
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
