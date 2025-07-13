@@ -23,6 +23,7 @@ export const baseOverrides = [
                     caughtErrorsIgnorePattern: '^_',
                 },
             ],
+            'no-console': 'warn',
         },
     },
 ];
