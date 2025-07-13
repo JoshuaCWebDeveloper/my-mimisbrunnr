@@ -1,6 +1,7 @@
-import { faPencil, faTags } from '@fortawesome/free-solid-svg-icons';
+import { faPencil, faTags, faSearch } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { useMutation } from '@tanstack/react-query';
+import { useState, useMemo } from 'react';
 import { styled } from 'styled-components';
 import { Tag } from '../../../../messenger.js';
 import { useTagManager } from '../context/tag-manager.js';
@@ -36,11 +37,48 @@ const StyledTagList = styled.div`
         }
     }
 
+    .filter-container {
+        position: relative;
+        margin-bottom: var(--space-3);
+
+        .filter-icon {
+            position: absolute;
+            right: var(--space-3);
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--color-text-tertiary);
+            font-size: var(--font-size-sm);
+            pointer-events: none;
+        }
+
+        .filter-input {
+            width: 100%;
+            background: var(--color-bg-secondary);
+            border: 1px solid var(--color-border-primary);
+            color: var(--color-text-primary);
+            transition: all var(--transition-fast);
+            padding: var(--space-1) var(--space-2);
+            border-radius: var(--radius-sm);
+            font-size: var(--font-size-sm);
+
+            &::placeholder {
+                color: var(--color-text-tertiary);
+            }
+
+            &:focus {
+                outline: none;
+                border-color: var(--color-primary);
+                background: var(--color-surface);
+                box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.1);
+            }
+        }
+    }
+
     .tag-grid {
         display: flex;
         flex-direction: column;
         gap: var(--space-2);
-        max-height: 280px;
+        max-height: 240px;
         overflow-y: auto;
         padding-right: var(--space-1);
     }
@@ -327,6 +365,7 @@ export const TagList = ({
     className,
 }: TagListProps) => {
     const tagManager = useTagManager();
+    const [filterUsername, setFilterUsername] = useState('');
 
     const { mutateAsync: deleteTag, isPending: isDeleting } = useMutation({
         mutationFn: (tag: Tag) => tagManager.delete(tag),
@@ -335,6 +374,16 @@ export const TagList = ({
     });
 
     const isLoading = loading || isDeleting;
+
+    const filteredTags = useMemo(() => {
+        if (!filterUsername.trim()) {
+            return tags;
+        }
+        const searchTerm = filterUsername.toLowerCase().trim();
+        return tags.filter(tag =>
+            tag.username.toLowerCase().includes(searchTerm)
+        );
+    }, [tags, filterUsername]);
 
     if (isLoading) {
         return (
@@ -363,46 +412,75 @@ export const TagList = ({
         <StyledTagList className={`tag-list ${className || ''}`}>
             <div className="list-header">
                 <h3 className="list-title">Your Tags</h3>
-                <span className="tag-count">{tags.length}</span>
+                <span className="tag-count">
+                    {filteredTags.length} / {tags.length}
+                </span>
+            </div>
+
+            <div className="filter-container">
+                <input
+                    type="text"
+                    className="filter-input"
+                    placeholder="Filter by username..."
+                    value={filterUsername}
+                    onChange={e => setFilterUsername(e.target.value)}
+                    aria-label="Filter tags by username"
+                />
+                <FontAwesomeIcon icon={faSearch} className="filter-icon" />
             </div>
 
             <div className="tag-grid">
-                {tags.map(tag => (
-                    <StyledTagItem key={tag.id}>
-                        <div className="tag-content">
-                            <div className="username-container">
-                                <span className="username">
-                                    <span className="username-prefix">@</span>
-                                    {tag.username}
+                {filteredTags.length === 0 && filterUsername.trim() ? (
+                    <StyledEmptyState aria-live="polite">
+                        <div className="icon-container">
+                            <FontAwesomeIcon icon={faSearch} />
+                        </div>
+                        <h3 className="title">No matching tags</h3>
+                        <p className="text">
+                            No tags found for username containing "
+                            {filterUsername}"
+                        </p>
+                    </StyledEmptyState>
+                ) : (
+                    filteredTags.map(tag => (
+                        <StyledTagItem key={tag.id}>
+                            <div className="tag-content">
+                                <div className="username-container">
+                                    <span className="username">
+                                        <span className="username-prefix">
+                                            @
+                                        </span>
+                                        {tag.username}
+                                    </span>
+                                </div>
+                                <span
+                                    className="tag-badge"
+                                    style={{ backgroundColor: tag.color }}
+                                >
+                                    {tag.name}
                                 </span>
                             </div>
-                            <span
-                                className="tag-badge"
-                                style={{ backgroundColor: tag.color }}
-                            >
-                                {tag.name}
-                            </span>
-                        </div>
-                        <div className="tag-actions">
-                            <button
-                                className="action-button edit-button"
-                                onClick={() => onEdit?.(tag)}
-                                disabled={isLoading}
-                                title="Edit tag"
-                            >
-                                <FontAwesomeIcon icon={faPencil} />
-                            </button>
+                            <div className="tag-actions">
+                                <button
+                                    className="action-button edit-button"
+                                    onClick={() => onEdit?.(tag)}
+                                    disabled={isLoading}
+                                    title="Edit tag"
+                                >
+                                    <FontAwesomeIcon icon={faPencil} />
+                                </button>
 
-                            <ConfirmableDelete
-                                className="action-button delete-button"
-                                ariaLabel="Delete tag"
-                                onDelete={() => deleteTag(tag)}
-                                disabled={isLoading}
-                                title="Delete tag"
-                            />
-                        </div>
-                    </StyledTagItem>
-                ))}
+                                <ConfirmableDelete
+                                    className="action-button delete-button"
+                                    ariaLabel="Delete tag"
+                                    onDelete={() => deleteTag(tag)}
+                                    disabled={isLoading}
+                                    title="Delete tag"
+                                />
+                            </div>
+                        </StyledTagItem>
+                    ))
+                )}
             </div>
         </StyledTagList>
     );
