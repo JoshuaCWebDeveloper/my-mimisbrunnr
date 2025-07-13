@@ -7,4 +7,4 @@ jobs:
   ci:
     uses: ./.github/workflows/ci-checks.yml
     with:
-      base: develop
+      base: origin/develop

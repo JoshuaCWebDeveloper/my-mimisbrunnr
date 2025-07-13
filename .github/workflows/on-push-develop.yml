@@ -8,4 +8,4 @@ jobs:
   ci:
     uses: ./.github/workflows/ci-checks.yml
     with:
-      base: master
+      base: origin/master
