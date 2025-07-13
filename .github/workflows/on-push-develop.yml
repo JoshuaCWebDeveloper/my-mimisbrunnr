@@ -1,0 +1,9 @@
+name: Develop Push
+
+on:
+  push:
+    branches: [develop]
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci-checks.yml

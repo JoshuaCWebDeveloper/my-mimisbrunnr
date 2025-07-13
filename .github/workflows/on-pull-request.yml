@@ -1,0 +1,8 @@
+name: PR Checks
+
+on:
+  pull_request:
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci-checks.yml
