@@ -74,18 +74,21 @@ Based on the technical specification and confirmed architecture decisions:
 **Note**: See `perpetual-node-architecture.md` for detailed architecture documentation.
 
 ### Custom OrbitDB Service (Node.js/TypeScript)
+
 -   **OrbitDB Manager** - Connect to Kubo IPFS, participate in discovery log pubsub
 -   **Replication Handler** - Pin OrbitDB log entries as they replicate (no filtering)
 -   **Basic Rate Limiter** - Defensive API rate limiting for infrastructure protection
 -   **Health Check API** - Service monitoring endpoints
 
 ### Docker Integration
+
 -   **Dockerfile for OrbitDB service** - Custom Node.js container
 -   **Uses official Kubo IPFS image** - `ipfs/kubo:latest` (no custom build needed)
 -   **docker-compose.yml** - Lives in monorepo root, orchestrates both services
 -   **Configuration files** - Kubo IPFS config, environment variables
 
 ### Key Features
+
 -   **OrbitDB pubsub participation** - Act as perpetual peer in discovery log network
 -   **OrbitDB log pinning** - Pin OrbitDB entries and heads for availability (no filtering)
 -   **IPFS infrastructure** - Provide standard IPFS API for client content pinning
@@ -102,7 +105,6 @@ Based on the technical specification and confirmed architecture decisions:
 -   **Create service definitions** and ingress rules
 -   **Build configmaps** for node configuration
 -   **Implement security policies** and RBAC
-
 
 ## Package: infra (New - Cloud Infrastructure)
 
@@ -124,6 +126,7 @@ Based on the technical specification and confirmed architecture decisions:
 ## Package: shared/api (New - Data Structures & Types)
 
 ### Data Structure Definitions
+
 -   **Define tag list JSON schema** and TypeScript types
 -   **Create DID document structure** definitions
 -   **Build OrbitDB discovery record** types
@@ -132,6 +135,7 @@ Based on the technical specification and confirmed architecture decisions:
 ## Package: shared/crypto (New - Cryptographic Libraries)
 
 ### Core Cryptographic Functions
+
 -   **Extract scrypt key derivation** utilities
 -   **Build DID generation** and management libraries
 -   **Create Ed25519 signing** and verification functions
@@ -140,6 +144,7 @@ Based on the technical specification and confirmed architecture decisions:
 ## Package: shared/testing (New - Testing Infrastructure)
 
 ### Test Utilities
+
 -   **Unit tests** for cryptographic functions
 -   **Integration tests** for IPFS/OrbitDB workflows
 -   **End-to-end tests** for browser extension
@@ -172,12 +177,14 @@ Based on the technical specification and confirmed architecture decisions:
 ## Technical Notes
 
 ### Pulumi CI/CD Feasibility
+
 Automated infrastructure updates with Pulumi are highly feasible:
-- **Official CI/CD integrations**: GitHub Actions, GitLab CI, Azure DevOps, Jenkins
-- **Pulumi Service**: Provides state management, policy enforcement, and deployment history
-- **Preview deployments**: Safe testing of infrastructure changes via `pulumi preview`
-- **Policy as Code**: Can enforce security and compliance rules automatically
-- **Rollback capabilities**: Built-in infrastructure rollback on deployment failures
+
+-   **Official CI/CD integrations**: GitHub Actions, GitLab CI, Azure DevOps, Jenkins
+-   **Pulumi Service**: Provides state management, policy enforcement, and deployment history
+-   **Preview deployments**: Safe testing of infrastructure changes via `pulumi preview`
+-   **Policy as Code**: Can enforce security and compliance rules automatically
+-   **Rollback capabilities**: Built-in infrastructure rollback on deployment failures
 
 ## Next Steps
 

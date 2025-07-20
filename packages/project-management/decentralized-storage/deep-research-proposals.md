@@ -22,8 +22,6 @@ Using the above methods, when another user wants to subscribe to `@alice`’s t
 
 IPNS inherently ensures that **only the owner of the private key can update the record** pointing a name to new content[docs.dappling.network](https://docs.dappling.network/legacy-docs/learn/ipns#:~:text=Decentralization%20and%20Security). In this design, the private key is generated and kept client-side (e.g. in local storage or a user-managed wallet). When `@alice` wants to update her tag list, her app signs a new IPNS record with her private key. The IPFS network will reject any IPNS update not signed by the correct key, so no malicious party can hijack or modify Alice’s mapping.
 
-
-
 Furthermore, the initial creation of the mapping is protected by X OAuth verification. The app only generates and publishes a mapping for a user *after* confirming they are the legitimate handle owner (via OAuth login). This prevents an attacker from preemptively creating an IPNS record for someone else’s handle. In summary, **each tag list mapping is bound to the user’s cryptographic key**, and that key is only issued to the verified account owner.
 
 ### Decentralization
@@ -220,8 +218,6 @@ In conclusion, Proposal 3 provides a **highly decentralized and standard-based
 ---
 
 Each of the above proposals meets the specified requirements in a different way: **Proposal 1** uses IPFS/IPNS and leverages the inherent security of signed mutable pointers; **Proposal 2** uses a blockchain as a decentralized name registry with smart-contract-enforced ownership; and **Proposal 3** employs decentralized identity and data protocols to achieve a self-sovereign, interoperable solution. All three are designed to be **secure against unauthorized changes or forgeries, decentralized and censorship-resistant, low-cost at scale, and usable with only client-side logic plus X’s free services**. Each proposal also explicitly details how it maps X handles to data and ensures only the handle’s owner can mutate that data, thus fully addressing the requirements for the decentralized tag list app.
-
-
 
 **Sources:**
 
