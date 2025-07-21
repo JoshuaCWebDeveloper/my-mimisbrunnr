@@ -56,11 +56,13 @@ The perpetual-node package provides a custom OrbitDB management service and ngin
 **Purpose:** Provides defensive filtering for public IPFS API access
 
 **Configuration:**
-- **Image**: `openresty/openresty:alpine` (nginx + Lua scripting)
-- **Exposed Port**: 5001 (replaces direct kubo exposure)
-- **Config File**: `config/nginx.conf` with Lua content inspection
+
+-   **Image**: `openresty/openresty:alpine` (nginx + Lua scripting)
+-   **Exposed Port**: 5001 (replaces direct kubo exposure)
+-   **Config File**: `config/nginx.conf` with Lua content inspection
 
 **Binary Content Detection:**
+
 ```lua
 -- Detect null bytes (primary binary indicator)
 if string.find(body, string.char(0)) then
@@ -69,7 +71,7 @@ end
 
 -- Analyze non-printable character ratio
 if binary_chars / sample_size > 0.05 then
-    return 415 "Binary files not allowed"  
+    return 415 "Binary files not allowed"
 end
 ```
 
@@ -278,7 +280,7 @@ GET /health/pins - Pinning service status
 ### Defensive Infrastructure Protection
 
 -   **IPFS API Filtering**: Nginx proxy with Lua scripting blocks binary content uploads
--   **Content Inspection**: Detects null bytes and high ratios of non-printable characters  
+-   **Content Inspection**: Detects null bytes and high ratios of non-printable characters
 -   **Size Limiting**: 1MB maximum request size to prevent resource exhaustion
 -   **Endpoint Filtering**: Only `/add`, `/pin/add`, `/cat`, `/get` endpoints allowed
 -   **Rate Limiting**: 10 req/sec per IP with burst allowances
