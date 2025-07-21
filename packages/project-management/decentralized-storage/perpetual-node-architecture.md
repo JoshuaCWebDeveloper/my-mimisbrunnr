@@ -14,6 +14,7 @@ packages/perpetual-node/
 ├── Dockerfile                      # Custom OrbitDB service container
 ├── entrypoint.sh                   # Container startup script
 ├── config/
+│   ├── nginx.conf                  # Nginx proxy with Lua filtering
 │   └── kubo/                       # Kubo IPFS configuration
 │       ├── 001-configure-cors.sh   # CORS setup script
 │       ├── 002-configure-gateway.sh # Gateway configuration
@@ -48,7 +49,29 @@ docker-compose.yml                  # Multi-service orchestration
 
 **Note**: See `docker-compose-architecture.md` for complete Docker Compose configuration.
 
-The perpetual-node package provides only the custom OrbitDB management service. It works alongside the official Kubo IPFS container:
+The perpetual-node package provides a custom OrbitDB management service and nginx filtering proxy. It works alongside the official Kubo IPFS container:
+
+### IPFS API Filtering Proxy
+
+**Purpose:** Provides defensive filtering for public IPFS API access
+
+**Configuration:**
+- **Image**: `openresty/openresty:alpine` (nginx + Lua scripting)
+- **Exposed Port**: 5001 (replaces direct kubo exposure)
+- **Config File**: `config/nginx.conf` with Lua content inspection
+
+**Binary Content Detection:**
+```lua
+-- Detect null bytes (primary binary indicator)
+if string.find(body, string.char(0)) then
+    return 415 "Binary files not allowed"
+end
+
+-- Analyze non-printable character ratio
+if binary_chars / sample_size > 0.05 then
+    return 415 "Binary files not allowed"  
+end
+```
 
 ### Custom OrbitDB Manager Service
 
@@ -254,7 +277,11 @@ GET /health/pins - Pinning service status
 
 ### Defensive Infrastructure Protection
 
--   IPFS API rate limiting to prevent DoS attacks
+-   **IPFS API Filtering**: Nginx proxy with Lua scripting blocks binary content uploads
+-   **Content Inspection**: Detects null bytes and high ratios of non-printable characters  
+-   **Size Limiting**: 1MB maximum request size to prevent resource exhaustion
+-   **Endpoint Filtering**: Only `/add`, `/pin/add`, `/cat`, `/get` endpoints allowed
+-   **Rate Limiting**: 10 req/sec per IP with burst allowances
 -   Health check endpoint exposed but read-only
 -   Basic request tracking per IP address
 -   Resource usage monitoring
@@ -262,7 +289,7 @@ GET /health/pins - Pinning service status
 ### Minimal Attack Surface
 
 -   No business logic validation (handled by clients)
--   No data filtering or content rejection
+-   No semantic content validation (JSON structure, DID proofs, etc.)
 -   No custom authentication or authorization
 -   Standard IPFS/OrbitDB protocols only
 

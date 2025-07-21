@@ -2,7 +2,7 @@
 
 ## Overview
 
-The docker-compose.yml file orchestrates the local development environment for the decentralized storage system. It coordinates the official Kubo IPFS node with our custom OrbitDB management service.
+The docker-compose.yml file orchestrates the local development environment for the decentralized storage system. It coordinates the official Kubo IPFS node, nginx filtering proxy, and custom OrbitDB management service.
 
 ## File Location
 
@@ -19,6 +19,18 @@ docker-compose.yml
 version: '3.8'
 
 services:
+    ipfs-proxy:
+        image: openresty/openresty:alpine
+        container_name: ipfs-proxy
+        ports:
+            - '5001:5001' # Filtered IPFS API
+        volumes:
+            - ./packages/perpetual-node/config/nginx.conf:/usr/local/openresty/nginx/conf/nginx.conf:ro
+        depends_on:
+            kubo:
+                condition: service_healthy
+        restart: unless-stopped
+
     kubo:
         image: ipfs/kubo:latest
         container_name: ipfs-node
@@ -26,7 +38,7 @@ services:
             - '4001:4001' # P2P swarm port
             - '8080:8080' # HTTP gateway
             - '8081:8081' # WebSocket gateway
-            - '5001:5001' # HTTP API
+            # 5001 removed - only accessible through proxy
         volumes:
             - ipfs-data:/data/ipfs
             - ./packages/perpetual-node/config/kubo:/container-init.d
@@ -88,6 +100,7 @@ networks:
 ```
 # Configuration managed by perpetual-node package
 packages/perpetual-node/config/
+├── nginx.conf                     # Nginx proxy with Lua filtering
 └── kubo/
     ├── 001-configure-cors.sh      # CORS setup script
     ├── 002-configure-gateway.sh   # Gateway configuration
