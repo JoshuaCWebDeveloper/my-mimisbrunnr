@@ -110,20 +110,38 @@ Based on the technical specification and confirmed architecture decisions:
 
 ## Package: infra (New - Cloud Infrastructure)
 
-### Pulumi Infrastructure
+**Note**: See `infra-package-architecture.md` for comprehensive Azure infrastructure architecture, cost analysis, and implementation details.
 
--   **Define Kubernetes cluster** resources
--   **Create networking** and security groups
--   **Implement persistent storage** provisioning
--   **Build load balancer** and ingress configuration
--   **Create backup and disaster recovery**
+### Azure Infrastructure Stack
+
+-   **AKS Cluster** - B1ms worker node (2 vCPU/2GB RAM) with free control plane
+-   **Standard Load Balancer** - Production-grade with health checks ($12/month)
+-   **Managed Storage** - Premium SSD for IPFS data persistence
+-   **Virtual Networking** - VNet with Network Security Groups for security
+-   **Container Registry** - Azure Container Registry for custom OrbitDB service
+-   **Monitoring** - Application Insights and Log Analytics integration
+
+### Pulumi Infrastructure as Code
+
+-   **TypeScript-native** - Seamless integration with existing monorepo
+-   **Environment-specific stacks** - Development and production configurations
+-   **Resource organization** - Modular structure for cluster, networking, storage, security
+-   **State management** - Pulumi Service for team collaboration and state consistency
+-   **Cost optimization** - Budget alerts and right-sizing recommendations
 
 ### CI/CD Integration
 
--   **Build deployment pipelines**
--   **Create automated testing** workflows
--   **Implement security scanning**
--   **Set up automated infrastructure updates** (Pulumi supports GitHub Actions, GitLab CI, and other CI/CD platforms with official providers)
+-   **GitHub Actions workflows** - Automated preview and deployment pipelines
+-   **Preview deployments** - Safe infrastructure changes with `pulumi preview`
+-   **Automated testing** workflows and security scanning
+-   **Infrastructure rollback** - Built-in rollback capabilities on deployment failures
+
+### Total Cost: ~$35.60/month
+
+-   Worker Node: $13/month (B1ms)
+-   Load Balancer: $12/month (Standard SKU)
+-   Storage: $0.60/month (1GB Premium SSD)
+-   Additional Services: ~$10/month (ACR + Monitoring)
 
 ## Package: shared/api (New - Data Structures & Types)
 
