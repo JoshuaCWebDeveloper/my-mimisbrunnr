@@ -97,6 +97,8 @@ Based on the technical specification and confirmed architecture decisions:
 
 ## Package: helm (New - Kubernetes Deployment)
 
+**Note**: See `helm-deployment.md` for comprehensive Helm deployment architecture and specifications.
+
 ### Helm Charts
 
 -   **Create Kubo deployment manifest**
