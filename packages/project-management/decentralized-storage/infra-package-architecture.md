@@ -178,22 +178,100 @@ config:
     infra:enableBackups: true
 ```
 
-### Secrets Management
+### Secrets Management with Azure Key Vault
+
+**Important**: Azure Key Vault pricing is based on operations. Free tier includes 10,000 operations/month. **Keep usage under 100K requests/month** to minimize costs.
 
 ```typescript
-// Azure Key Vault integration
+// Azure Key Vault with optimized configuration
 const keyVault = new azure.keyvault.Vault('perpetual-keyvault', {
     resourceGroupName: resourceGroup.name,
     tenantId: current.tenantId,
+    sku: {
+        name: 'standard', // Use standard tier (cheaper than premium)
+        family: 'A',
+    },
     accessPolicies: [
         {
             tenantId: current.tenantId,
-            objectId: current.objectId,
-            secretPermissions: ['get', 'list', 'set'],
+            objectId: managedIdentity.principalId,
+            secretPermissions: ['get'], // Minimal permissions - only read secrets
+            keyPermissions: ['get'], // For cryptographic keys if needed
         },
     ],
+    enabledForDeployment: false, // Disable unused features
+    enabledForDiskEncryption: false,
+    enabledForTemplateDeployment: false,
+    networkAcls: {
+        bypass: 'AzureServices',
+        defaultAction: 'Allow', // Restrict in production
+    },
 });
+
+// Store only essential secrets
+const essentialSecrets = [
+    new azure.keyvault.Secret('github-token', {
+        vaultUri: keyVault.vaultUri,
+        value: process.env.GITHUB_TOKEN!,
+        contentType: 'text/plain',
+    }),
+    new azure.keyvault.Secret('ipfs-private-key', {
+        vaultUri: keyVault.vaultUri,
+        value: process.env.IPFS_PRIVATE_KEY!,
+        contentType: 'text/plain',
+    }),
+];
 ```
+
+**Cost Optimization Strategies for Key Vault:**
+
+1. **Read Secrets Only on Pod Startup**
+
+    ```typescript
+    // In your Kubernetes deployment - use init containers
+    initContainers:
+    - name: secret-fetcher
+      image: azure/azure-cli:latest
+      command: ['/bin/sh', '-c']
+      args:
+      - |
+        # Fetch secrets once and write to shared volume
+        az keyvault secret show --name github-token --vault-name perpetual-keyvault --query value -o tsv > /shared/github-token
+        az keyvault secret show --name ipfs-private-key --vault-name perpetual-keyvault --query value -o tsv > /shared/ipfs-key
+      volumeMounts:
+      - name: secrets-volume
+        mountPath: /shared
+    ```
+
+2. **Cache Secrets in Memory**
+
+    - Load secrets once during application startup
+    - Store in memory/environment variables for application lifetime
+    - Only re-fetch on pod restart or explicit refresh
+
+3. **Minimize Secret Operations**
+
+    - Avoid polling Key Vault for secret updates
+    - Use Kubernetes secrets as cache layer after initial fetch
+    - Bundle related secrets into single operations where possible
+
+4. **Alternative for Development**
+    ```typescript
+    // Use Kubernetes secrets for development to avoid Key Vault costs
+    const devSecrets = new kubernetes.core.v1.Secret('dev-secrets', {
+        metadata: { name: 'perpetual-secrets' },
+        stringData: {
+            'github-token': process.env.GITHUB_TOKEN!,
+            'ipfs-private-key': process.env.IPFS_PRIVATE_KEY!,
+        },
+    });
+    ```
+
+**Expected Key Vault Usage:**
+
+-   **Pod startup**: ~5 secret reads per pod restart
+-   **Monthly estimate**: <500 operations (well under 10K free tier limit)
+-   **Cost**: $0/month under free tier, minimal above
 
 ### Container Deployment Strategy
 
@@ -269,7 +347,14 @@ spec:
 
 ### CI/CD Integration
 
-#### GitHub Actions Workflow (`.github/workflows/infra-deploy.yml`)
+#### GitHub Actions Workflow with Environment Protection
+
+**Setup GitHub Environment:**
+
+1. Go to repository Settings → Environments
+2. Create environment named `production`
+3. Add required reviewers for approval
+4. Configure branch protection rules for `main` branch
 
 ```yaml
 name: Infrastructure Deployment
@@ -287,10 +372,10 @@ jobs:
         if: github.event_name == 'pull_request'
         steps:
             - uses: actions/checkout@v4
-            - name: Configure AWS credentials
-              uses: aws-actions/configure-aws-credentials@v4
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
               with:
-                  aws-region: us-east-1
+                  node-version: '18'
             - name: Preview infrastructure changes
               run: |
                   cd packages/infra
@@ -303,11 +388,18 @@ jobs:
                   ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
                   ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-    deploy:
+    deploy-production:
         runs-on: ubuntu-latest
         if: github.ref == 'refs/heads/main'
+        environment:
+            name: production
+            url: https://portal.azure.com/#@/resource/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/perpetual-rg/overview
         steps:
             - uses: actions/checkout@v4
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: '18'
             - name: Deploy to production
               run: |
                   cd packages/infra
@@ -319,7 +411,18 @@ jobs:
                   ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
                   ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
                   ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+            - name: Post deployment status
+              if: always()
+              run: |
+                  echo "Deployment completed. Check Azure Portal for resource status."
 ```
+
+**GitHub Environment Configuration:**
+
+1. **Required Reviewers**: Add team members who must approve production deployments
+2. **Wait Timer**: Optional delay before deployment (e.g., 5 minutes for review)
+3. **Branch Protection**: Ensure only `main` branch can deploy to production
+4. **Environment Secrets**: Store production-specific secrets separately from dev
 
 ### Deployment Process
 
@@ -359,10 +462,11 @@ export const containerImageRepository = 'ghcr.io/your-username/my-mimisbrunnr';
 ### Network Security
 
 ```typescript
-// Restrictive network security group rules
+// Comprehensive network security group rules for IPFS/OrbitDB node
 const securityRules = [
+    // IPFS Swarm Communication
     {
-        name: 'AllowIPFS',
+        name: 'AllowIPFSSwarm',
         protocol: 'Tcp',
         sourcePortRange: '*',
         destinationPortRange: '4001',
@@ -372,17 +476,115 @@ const securityRules = [
         priority: 100,
         direction: 'Inbound',
     },
+    // IPFS Gateway (for API access)
     {
-        name: 'AllowHTTPS',
+        name: 'AllowIPFSGateway',
         protocol: 'Tcp',
-        destinationPortRange: '443',
+        sourcePortRange: '*',
+        destinationPortRange: '8080',
+        sourceAddressPrefix: '*',
+        destinationAddressPrefix: '*',
         access: 'Allow',
         priority: 110,
         direction: 'Inbound',
     },
-    // Deny all other inbound traffic
+    // IPFS API (for client interactions)
+    {
+        name: 'AllowIPFSAPI',
+        protocol: 'Tcp',
+        sourcePortRange: '*',
+        destinationPortRange: '5001',
+        sourceAddressPrefix: '*',
+        destinationAddressPrefix: '*',
+        access: 'Allow',
+        priority: 120,
+        direction: 'Inbound',
+    },
+    // HTTPS for secure access
+    {
+        name: 'AllowHTTPS',
+        protocol: 'Tcp',
+        sourcePortRange: '*',
+        destinationPortRange: '443',
+        sourceAddressPrefix: '*',
+        destinationAddressPrefix: '*',
+        access: 'Allow',
+        priority: 130,
+        direction: 'Inbound',
+    },
+    // HTTP (only if needed for health checks)
+    {
+        name: 'AllowHTTP',
+        protocol: 'Tcp',
+        sourcePortRange: '*',
+        destinationPortRange: '80',
+        sourceAddressPrefix: '*',
+        destinationAddressPrefix: '*',
+        access: 'Allow',
+        priority: 140,
+        direction: 'Inbound',
+    },
+    // SSH for administrative access (restrict to specific IPs in production)
+    {
+        name: 'AllowSSH',
+        protocol: 'Tcp',
+        sourcePortRange: '*',
+        destinationPortRange: '22',
+        sourceAddressPrefix: '*', // TODO: Restrict to admin IP ranges
+        destinationAddressPrefix: '*',
+        access: 'Allow',
+        priority: 150,
+        direction: 'Inbound',
+    },
+    // Kubernetes API server communication
+    {
+        name: 'AllowKubeAPI',
+        protocol: 'Tcp',
+        sourcePortRange: '*',
+        destinationPortRange: '6443',
+        sourceAddressPrefix: 'VirtualNetwork',
+        destinationAddressPrefix: 'VirtualNetwork',
+        access: 'Allow',
+        priority: 160,
+        direction: 'Inbound',
+    },
+    // Deny all other inbound traffic (explicit deny rule)
+    {
+        name: 'DenyAllInbound',
+        protocol: '*',
+        sourcePortRange: '*',
+        destinationPortRange: '*',
+        sourceAddressPrefix: '*',
+        destinationAddressPrefix: '*',
+        access: 'Deny',
+        priority: 4000,
+        direction: 'Inbound',
+    },
 ];
+
+// Apply security rules to the network security group
+const nsg = new azure.network.NetworkSecurityGroup('perpetual-nsg', {
+    resourceGroupName: resourceGroup.name,
+    securityRules: securityRules,
+    location: resourceGroup.location,
+});
+
+// Associate NSG with the subnet
+const nsgAssociation = new azure.network.SubnetNetworkSecurityGroupAssociation(
+    'nsg-association',
+    {
+        subnetId: subnet.id,
+        networkSecurityGroupId: nsg.id,
+    }
+);
 ```
+
+**Security Considerations:**
+
+-   **IPFS Ports**: 4001 (swarm), 5001 (API), 8080 (gateway) - all required for IPFS functionality
+-   **HTTPS/HTTP**: 443/80 for web access and health checks
+-   **SSH Access**: Should be restricted to specific admin IP ranges in production
+-   **Default Deny**: Explicit deny rule ensures only specified traffic is allowed
 
 ### Identity and Access Management
 
@@ -486,39 +688,52 @@ const budget = new azure.consumption.Budget('perpetual-budget', {
 });
 ```
 
-## Implementation Timeline
+## Implementation Plan
 
-### MVP Implementation (Phase 1 Only)
+### Immediate Implementation (MVP)
 
-**Note**: This implementation focuses solely on Phase 1 (MVP) infrastructure. Phase 2 enhancements (Application Insights, Azure Container Registry, advanced monitoring) are not planned for the near term and will be considered only if specific business requirements emerge.
+These components will be implemented now to provide a production-ready minimal infrastructure:
 
-### Phase 1: Core Infrastructure (Week 1-2)
+#### Core Infrastructure
 
--   [ ] Set up Pulumi project structure
--   [ ] Configure Azure authentication and resource groups
--   [ ] Deploy basic AKS cluster with single node
--   [ ] Set up standard load balancer and networking
+-   [ ] Set up Pulumi project structure and Azure authentication
+-   [ ] Deploy basic AKS cluster with single B1ms node
+-   [ ] Configure standard load balancer and networking
+-   [ ] Set up managed disk storage (1GB Premium SSD)
 
-### Phase 2: Storage and Security (Week 3)
+#### Security and Access Control
 
--   [ ] Configure managed disk storage
--   [ ] Set up Azure Key Vault for secrets management
--   [ ] Implement network security groups and policies
+-   [ ] Implement comprehensive network security groups
 -   [ ] Configure managed identities and RBAC
+-   [ ] Set up Azure Key Vault for secrets management
+-   [ ] Create GitHub Container Registry authentication
 
-### Phase 3: Monitoring and CI/CD (Week 4)
+#### CI/CD and Deployment
 
--   [ ] Set up Application Insights and Log Analytics
--   [ ] Configure monitoring dashboards and alerts
--   [ ] Implement GitHub Actions deployment workflows
--   [ ] Set up budget monitoring and cost alerts
+-   [ ] Implement GitHub Actions workflows with environment protection
+-   [ ] Configure approval gates for production deployments
+-   [ ] Set up automated preview deployments for pull requests
+-   [ ] Configure deployment rollback capabilities
 
-### Phase 4: Production Readiness (Week 5-6)
+#### Basic Monitoring
 
--   [ ] Production environment configuration
--   [ ] Backup and disaster recovery setup
--   [ ] Security hardening and compliance validation
--   [ ] Load testing and performance optimization
+-   [ ] Set up free-tier Log Analytics workspace
+-   [ ] Configure basic resource health alerts
+-   [ ] Implement budget monitoring and cost alerts
+-   [ ] Set up Kubernetes native monitoring tools
+
+### Future Enhancements (Not Currently Planned)
+
+These components may be considered for implementation in the future if specific business requirements emerge:
+
+-   **Advanced Monitoring**: Application Insights with distributed tracing and custom metrics
+-   **Azure Container Registry**: Private container registry with advanced security scanning
+-   **Multi-region Deployment**: High availability across multiple Azure regions
+-   **Auto-scaling**: Horizontal pod autoscaling based on IPFS/OrbitDB metrics
+-   **Advanced Security**: Azure Defender, private endpoints, network policies
+-   **Backup & Disaster Recovery**: Automated backup of IPFS data and configuration
+-   **Performance Optimization**: Premium storage tiers, dedicated node pools
+-   **Compliance Features**: Azure Policy enforcement, compliance reporting
 
 ## Cost Optimization Strategies
 
