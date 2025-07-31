@@ -103,47 +103,65 @@ end
 ### 1. OrbitDB Manager (`src/services/orbitdb-manager.ts`)
 
 ```typescript
+import { DiscoveryRecord } from '@my-mimisbrunnr/shared-api';
+import { validateDiscoveryRecord } from '@my-mimisbrunnr/shared-validation';
+import { PROTOCOL } from '@my-mimisbrunnr/shared-crypto';
+
 export class OrbitDBManager {
     private ipfs: IPFSHTTPClient;
     private orbitdb: OrbitDB;
-    private discoveryLog: LogStore<any>;
+    private discoveryLog: LogStore<DiscoveryRecord>;
 
     async initialize(): Promise<void>;
     async openDiscoveryLog(): Promise<void>;
     async handleReplication(address: string, hash: string): Promise<void>;
-    getDiscoveryLog(): LogStore<any>;
+    getDiscoveryLog(): LogStore<DiscoveryRecord>;
 }
 ```
 
 **Key Operations:**
 
 -   Connect to IPFS via HTTP API (`http://kubo:5001`)
--   Initialize OrbitDB with IPFS instance
--   Open the shared discovery log database
--   Set up replication event handlers (no filtering)
+-   Initialize OrbitDB with IPFS instance using shared constants
+-   Open the shared discovery log database (`PROTOCOL.ORBITDB_LOG_NAME`)
+-   Set up replication event handlers (basic validation using shared libraries)
 -   Participate in pubsub network as a peer
 
 ### 2. Simple Replication Handler (`src/services/replication-handler.ts`)
 
 ```typescript
+import {
+    validateDiscoveryRecord,
+    VALIDATION_LIMITS,
+} from '@my-mimisbrunnr/shared-validation';
+
 export class ReplicationHandler {
-    async handleNewEntry(entry: LogEntry<any>): Promise<void>;
+    async handleNewEntry(entry: LogEntry<DiscoveryRecord>): Promise<void>;
     async pinEntryContent(entryCid: string): Promise<void>;
     async cleanupOldEntries(): Promise<void>;
+    private validateEntry(entry: DiscoveryRecord): boolean;
 }
 ```
 
 **Simple Operations:**
 
 -   Listen for new OrbitDB entries via replication events
--   Pin entry CIDs to local IPFS node (no content validation)
+-   Basic format validation using shared validation utilities
+-   Pin entry CIDs to local IPFS node (with size limits from shared constants)
 -   Basic cleanup of very old entries (storage management only)
--   No business logic or data filtering
+-   No complex business logic or cryptographic verification
 
 ### 3. Basic Rate Limiter (`src/services/rate-limiter.ts`)
 
 ```typescript
+import {
+    RateLimitConfig,
+    checkRateLimit,
+} from '@my-mimisbrunnr/shared-validation';
+
 export class BasicRateLimiter {
+    private config: RateLimitConfig;
+
     async checkIPFSAPILimit(clientIP: string): Promise<boolean>;
     async trackRequest(clientIP: string): Promise<void>;
     async cleanupOldRequests(): Promise<void>;
@@ -152,8 +170,9 @@ export class BasicRateLimiter {
 
 **Defensive Rate Limiting:**
 
+-   Uses shared rate limiting utilities and configuration
 -   Simple request counting per IP for IPFS API endpoints
--   Prevent DoS attacks on the node infrastructure
+-   Prevent DoS attacks on the node infrastructure using shared security policies
 -   No filtering of OrbitDB data - only protective measures for node resources
 -   Basic cleanup of tracking data
 
@@ -245,10 +264,16 @@ export const config = {
 
 -   `ipfs-http-client` - IPFS API client
 -   `orbit-db` - Decentralized database
--   `@noble/hashes` - Cryptographic hashing
--   `@noble/ed25519` - Ed25519 signature verification
 -   `express` - HTTP server for health checks
 -   `winston` - Logging
+
+### Shared Library Dependencies
+
+**Note**: See `shared-libraries-planning.md` for comprehensive shared library architecture and specifications.
+
+-   `@my-mimisbrunnr/shared-api` - Data structures, schemas, and TypeScript types
+-   `@my-mimisbrunnr/shared-crypto` - Cryptographic utilities with protocol constants
+-   `@my-mimisbrunnr/shared-validation` - Content validation, security utilities, and validation limits
 
 ### Docker Images Used
 

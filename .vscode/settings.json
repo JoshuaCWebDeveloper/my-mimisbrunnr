@@ -6,9 +6,13 @@
   ],
   "cSpell.words": [
     "Avenir",
+    "dockerconfigjson",
+    "IPFSAPI",
     "kubo",
+    "managedidentity",
     "mimisbrunnr",
     "ncipollo",
+    "operationalinsights",
     "orbitdb",
     "taglist",
     "xcom"
