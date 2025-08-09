@@ -4,6 +4,18 @@
     // https://marketplace.visualstudio.com/items?itemName=unional.vscode-sort-package-json
     "source.sortPackageJson"
   ],
-  "cSpell.words": ["Avenir", "mimisbrunnr", "ncipollo", "xcom"],
+  "cSpell.words": [
+    "Avenir",
+    "dockerconfigjson",
+    "IPFSAPI",
+    "kubo",
+    "managedidentity",
+    "mimisbrunnr",
+    "ncipollo",
+    "operationalinsights",
+    "orbitdb",
+    "taglist",
+    "xcom"
+  ],
   "nxConsole.generateAiAgentRules": true
 }
