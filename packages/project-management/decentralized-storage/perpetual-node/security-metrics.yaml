@@ -1,0 +1,223 @@
+# Security Monitoring Configuration
+# File: packages/perpetual-node/config/monitoring/security-metrics.yaml
+
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: perpetual-node-security-metrics
+  namespace: mimisbrunnr
+  labels:
+    app: perpetual-node
+spec:
+  selector:
+    matchLabels:
+      app: ipfs-proxy
+  endpoints:
+    - port: metrics
+      interval: 30s
+      path: /metrics
+      scheme: http
+      metricRelabelings:
+        - sourceLabels: [__name__]
+          regex: 'pin_add_facade_.*'
+          targetLabel: 'security_metric'
+          replacement: 'true'
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: perpetual-node-security-alerts
+  namespace: mimisbrunnr
+  labels:
+    app: perpetual-node
+spec:
+  groups:
+    - name: security.rules
+      interval: 30s
+      rules:
+        # High rate of security rejections
+        - alert: HighSecurityRejectionRate
+          expr: |
+            rate(pin_add_facade_rejected_total[5m]) > 10
+          for: 2m
+          labels:
+            severity: warning
+            component: security-facade
+          annotations:
+            summary: 'High rate of security rejections detected'
+            description: 'Pin add facade is rejecting >10 requests per minute for 2+ minutes. This may indicate an attack or misconfigured client.'
+            runbook_url: 'https://docs.mimisbrunnr.io/runbooks/security-rejections'
+
+        # IP rate limit frequently exceeded
+        - alert: IPRateLimitExceeded
+          expr: |
+            increase(nginx_http_requests_total{status="429"}[1m]) > 50
+          for: 1m
+          labels:
+            severity: warning
+            component: rate-limiter
+          annotations:
+            summary: 'IP rate limit frequently exceeded'
+            description: '{{ $labels.instance }} is generating >50 rate limit responses (429) per minute. Client may be misconfigured or malicious.'
+            client_ip: '{{ $labels.client_ip }}'
+
+        # Large volume of content rejected
+        - alert: LargeContentRejections
+          expr: |
+            increase(pin_add_facade_rejected_bytes_total[5m]) > 100000000
+          for: 2m
+          labels:
+            severity: critical
+            component: content-validation
+          annotations:
+            summary: 'Large volume of content rejected'
+            description: '>100MB of content has been rejected in the last 5 minutes. This indicates a potential resource exhaustion attack.'
+
+        # Validation service unavailable
+        - alert: ValidationServiceDown
+          expr: |
+            up{job="validator"} == 0
+          for: 30s
+          labels:
+            severity: critical
+            component: validator
+          annotations:
+            summary: 'Validation sidecar service down'
+            description: 'The AJV schema validation service is unavailable. Security facades cannot validate content.'
+
+        # High schema validation error rate
+        - alert: SchemaValidationErrors
+          expr: |
+            rate(validator_schema_errors_total[5m]) > 5
+          for: 2m
+          labels:
+            severity: warning
+            component: validator
+          annotations:
+            summary: 'High schema validation error rate'
+            description: 'Schema validation is failing >5 times per minute. This may indicate malformed client requests or schema issues.'
+
+        # Quota enforcement issues
+        - alert: QuotaEnforcementFailure
+          expr: |
+            increase(pin_add_quota_check_failures_total[5m]) > 10
+          for: 1m
+          labels:
+            severity: warning
+            component: quota-system
+          annotations:
+            summary: 'Quota enforcement system failures'
+            description: 'The quota enforcement system has failed >10 times in 5 minutes. Rate limiting may be compromised.'
+
+        # Kubo connectivity issues
+        - alert: KuboConnectivityIssues
+          expr: |
+            rate(pin_add_kubo_connection_failures_total[5m]) > 1
+          for: 2m
+          labels:
+            severity: critical
+            component: kubo-integration
+          annotations:
+            summary: 'Kubo IPFS node connectivity issues'
+            description: 'Security facades cannot connect to Kubo IPFS node. Pinning operations are failing.'
+
+        # Pubsub topic violations
+        - alert: PubsubTopicViolations
+          expr: |
+            rate(pubsub_topic_violations_total[5m]) > 5
+          for: 1m
+          labels:
+            severity: warning
+            component: pubsub-security
+          annotations:
+            summary: 'High rate of pubsub topic violations'
+            description: 'Clients are attempting to use unauthorized pubsub topics >5 times per minute.'
+
+        # Memory usage alerts for security services
+        - alert: SecurityServiceHighMemory
+          expr: |
+            (
+              container_memory_working_set_bytes{container="ipfs-proxy"} / 
+              container_spec_memory_limit_bytes{container="ipfs-proxy"}
+            ) > 0.8
+          for: 5m
+          labels:
+            severity: warning
+            component: resource-usage
+          annotations:
+            summary: 'Security facade high memory usage'
+            description: 'IPFS proxy container is using >80% of allocated memory for 5+ minutes.'
+
+        - alert: ValidatorHighMemory
+          expr: |
+            (
+              container_memory_working_set_bytes{container="validator"} / 
+              container_spec_memory_limit_bytes{container="validator"}
+            ) > 0.8
+          for: 5m
+          labels:
+            severity: warning
+            component: resource-usage
+          annotations:
+            summary: 'Validator service high memory usage'
+            description: 'Validator container is using >80% of allocated memory for 5+ minutes.'
+
+        # Response time degradation
+        - alert: SecurityFacadeSlowResponses
+          expr: |
+            histogram_quantile(0.95, rate(nginx_http_request_duration_seconds_bucket[5m])) > 5
+          for: 3m
+          labels:
+            severity: warning
+            component: performance
+          annotations:
+            summary: 'Security facade slow response times'
+            description: '95th percentile response time is >5 seconds for 3+ minutes. Security validation may be overloaded.'
+
+        # Disk space for logs
+        - alert: SecurityLogsDiskSpaceHigh
+          expr: |
+            (
+              node_filesystem_avail_bytes{mountpoint="/var/log"} / 
+              node_filesystem_size_bytes{mountpoint="/var/log"}
+            ) < 0.1
+          for: 1m
+          labels:
+            severity: critical
+            component: storage
+          annotations:
+            summary: 'Security logs disk space critically low'
+            description: 'Less than 10% disk space available for security logs. Log rotation or cleanup needed.'
+
+    # Recording rules for security metrics
+    - name: security.recording
+      interval: 30s
+      rules:
+        # Security rejection rate by type
+        - record: security:rejection_rate_by_type
+          expr: |
+            rate(pin_add_facade_rejected_total[5m])
+          labels:
+            metric_type: 'security_rejection'
+
+        # Schema validation success rate
+        - record: security:schema_validation_success_rate
+          expr: |
+            (
+              rate(validator_validations_total[5m]) - 
+              rate(validator_schema_errors_total[5m])
+            ) / rate(validator_validations_total[5m])
+          labels:
+            metric_type: 'validation_success'
+
+        # Overall security health score
+        - record: security:health_score
+          expr: |
+            (
+              min(up{job="validator"}) * 
+              min(up{job="ipfs-proxy"}) * 
+              (1 - (rate(pin_add_facade_rejected_total[5m]) / 100))
+            )
+          labels:
+            metric_type: 'health_score'

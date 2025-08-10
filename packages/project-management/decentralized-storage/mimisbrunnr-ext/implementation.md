@@ -318,6 +318,83 @@ This implementation is organized into two major epics that build upon each other
 **Key Epic Benefits:**
 
 -   **Epic 1** delivers complete technical foundation with immediate personal value (backup/restore)
+
+#### Epic 1.6: Security Hardening Implementation
+
+**Client-Side Security Validation (Required for Mitigation Spec Compliance):**
+
+-   Implement pubsub message validation against `pubsub/head/v1` schema
+-   Build monotonic timestamp checking and author verification
+-   Create IPNS freshness validation with sequence number tracking
+-   Add comprehensive error handling for façade security responses
+-   Implement exponential backoff with specified parameters (500ms→4s, max 5)
+-   Build telemetry and security metrics collection
+-   Add de-duplication and debounce logic for pubsub messages
+
+**Integration with Node Façades:**
+
+-   Update all IPFS API calls to use security façades instead of direct API
+-   Handle new error codes (413, 415, 429, 507) with appropriate user feedback
+-   Implement content size validation before API calls (≤1MB)
+-   Add schema pre-validation to reduce server-side rejection
+-   Build retry logic for rate-limited operations
+
+## Client-Side Security Implementation Files
+
+### Security Validation Services
+
+**Pubsub Message Validation:** See example implementation:
+
+-   [`src/services/security/pubsub-validator.ts`](./pubsub-validator.ts) - Complete pubsub validation pipeline
+
+**IPNS Freshness Validation:** See example implementation:
+
+-   [`src/services/security/ipns-validator.ts`](./ipns-validator.ts) - IPNS replay protection and retry logic
+
+### Integration Requirements
+
+**Service Integration Points:**
+
+-   DecentralizedSyncService must integrate both validators
+-   Background sync operations use IPNS validator for freshness checks
+-   Pubsub message handlers use PubsubMessageValidator for all incoming messages
+-   All API calls to perpetual node must go through security façades
+
+**Error Handling Implementation:**
+
+-   413 Payload Too Large → Show user "Content exceeds size limit"
+-   415 Unsupported Media Type → Show user "Invalid content format"
+-   429 Too Many Requests → Implement backoff with user feedback
+-   507 Insufficient Storage → Show user "Storage capacity reached"
+
+### Security Configuration
+
+**Required Environment Variables:**
+
+```typescript
+// Extension configuration for security
+export const SECURITY_CONFIG = {
+    // Node façade endpoints (never bypass)
+    IPFS_API_BASE: process.env.IPFS_API_BASE || 'http://localhost:5001',
+
+    // Retry configuration (matches technical spec)
+    RETRY_CONFIG: {
+        maxAttempts: 5,
+        baseDelayMs: 500,
+        maxDelayMs: 4000,
+        backoffFactor: 2,
+    },
+
+    // Content validation limits
+    MAX_CONTENT_SIZE: 1048576, // 1MB
+    MAX_PUBSUB_MESSAGE_SIZE: 65536, // 64KB
+
+    // Validation timeouts
+    SCHEMA_VALIDATION_TIMEOUT: 5000,
+    IPNS_RESOLUTION_TIMEOUT: 10000,
+};
+```
+
 -   **Epic 2** leverages existing infrastructure to add social features with minimal technical risk
 -   **Incremental Delivery** allows for user feedback and iteration between epics
 -   **Risk Mitigation** validates core systems with simpler use case before adding complexity

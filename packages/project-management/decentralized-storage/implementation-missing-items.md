@@ -2,7 +2,24 @@
 
 This document identifies requirements from the technical specification that are missing or insufficiently addressed in the current implementation planning documents.
 
-## Verified Missing Items
+**Status Update (Post-Mitigation Spec)**: Many security-related missing items have been comprehensively addressed through the security hardening implementation. Security details are now distributed across package-specific implementation documentation:
+
+-   **Perpetual Node**: See `perpetual-node/implementation.md` and example files
+-   **Browser Extension**: See `mimisbrunnr-ext/implementation.md` and security validation services
+-   **Helm Deployment**: See `helm/security-templates.yaml` for Kubernetes security policies
+
+## Security Items Resolved by Mitigation Spec
+
+✅ **API Security Hardening**: Comprehensive security façades implemented
+✅ **Content Validation Pipeline**: Multi-layer validation with schema enforcement
+✅ **Rate Limiting & Quotas**: Per-IP rate limits and daily quotas
+✅ **Gateway Security**: IPFS gateway completely disabled
+✅ **Client-Side Validation**: Pubsub and IPNS validation requirements specified
+✅ **Monitoring & Alerting**: Security metrics and Prometheus alerting rules
+✅ **Network Security**: Zero-trust Kubernetes network policies
+✅ **Resource Limits**: Repository limits and GC configuration
+
+## Remaining Missing Items
 
 ### 1. IPNS Republish Configuration (Spec Section 4.6)
 
@@ -244,4 +261,10 @@ This document identifies requirements from the technical specification that are 
 -   **Medium Priority**: Items 1, 5, 9, 11 (operational efficiency and monitoring)
 -   **Low Priority**: Items 2, 4, 6, 10 (advanced features and optimizations)
 
-**Recommendation**: Address high-priority missing items before implementation begins, particularly security hardening measures and backup procedures. Medium-priority items should be planned for Phase 2 implementation.
+**Updated Recommendation Post-Mitigation Spec**:
+
+-   **Phase 1**: All critical security items resolved ✅
+-   **Phase 2**: Address synthetic monitoring for operational visibility
+-   **Future Phases**: Consider scaling optimizations (custom republisher, multi-region)
+
+**Security Status**: 🔒 **Comprehensive security hardening complete** - all critical security vulnerabilities addressed through mitigation spec implementation.

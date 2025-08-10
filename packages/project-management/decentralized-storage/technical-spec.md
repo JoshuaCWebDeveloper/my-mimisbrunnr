@@ -379,6 +379,83 @@ Because OrbitDB requires a JS runtime, deploy a **companion OrbitDB process** (N
 -   Kubo automatically republish interval: ensure `Ipns.RepublishPeriod` default (12h) is acceptable or reduce (e.g., 4h) for fresher resolution.
 -   If large scale, implement a custom republisher for hot identities.
 
+### 4.6.1 API Security Hardening
+
+**Problem**: The public IPFS API exposes `/api/v0/pin/add` which allows arbitrary remote CID pinning, leading to:
+
+-   Unbounded data transfer and storage exhaustion
+-   Free CDN/gateway abuse degrading legitimate user availability
+-   Resource exhaustion attacks
+
+**Solution**: Deploy comprehensive security façades that maintain Kubo API compatibility while enforcing strict validation.
+
+#### 4.6.2 Security Façade Architecture
+
+**Multi-Layer Validation Pipeline:**
+
+```nginx
+# OpenResty (nginx + Lua) with comprehensive façades
+location = /api/v0/pin/add {
+    # 1. Rate limiting: 60 req/min per IP, daily quotas
+    # 2. CID format validation: CIDv1 format only
+    # 3. Root block prefetch: ≤1MB size enforcement
+    # 4. Codec restriction: DAG-JSON/DAG-CBOR only
+    # 5. Schema validation: AJV validation via sidecar
+    # 6. Single-block pin: force recursive=false
+    # 7. Delegate to Kubo: only after all validation passes
+}
+
+location = /api/v0/dag/get {
+    # Size-limited, schema-validated content retrieval
+}
+
+location = /api/v0/pubsub/pub {
+    # Topic allowlisting, JSON validation, 64KB limit
+}
+```
+
+#### 4.6.3 Validation Sidecar Service
+
+**AJV-based JSON Schema Validation:**
+
+-   **Service**: Dedicated Node.js container with AJV
+-   **Schemas**: `taglist/v1`, `pubsub/head/v1`
+-   **Integration**: HTTP `/validate` endpoint called by Lua scripts
+-   **Performance**: Sub-100ms response for real-time façade validation
+
+#### 4.6.4 Kubo Configuration Hardening
+
+**Gateway Removal:**
+
+```json
+{
+    "Addresses": {
+        "API": "/ip4/0.0.0.0/tcp/5001",
+        "Gateway": ""
+    },
+    "Gateway": {
+        "NoFetch": true
+    },
+    "Experimental": {
+        "P2pHttpProxy": false
+    }
+}
+```
+
+**Repository Limits:**
+
+```json
+{
+    "Datastore": {
+        "StorageMax": "20GB",
+        "GCPeriod": "1h"
+    },
+    "Ipns": {
+        "RepublishPeriod": "4h"
+    }
+}
+```
+
 ### 4.7 Monitoring & Observability
 
 | Metric                     | Source                         |
@@ -393,14 +470,29 @@ Because OrbitDB requires a JS runtime, deploy a **companion OrbitDB process** (N
 -   Periodic `ipfs repo backup` (or snapshot PVC) daily.
 -   Store snapshot off-cluster (e.g., S3) encrypted.
 
-### 4.9 Security Hardening
+### 4.9 Enhanced Security Hardening
 
-| Vector              | Mitigation                                                  |
-| ------------------- | ----------------------------------------------------------- |
-| API exposure        | Restrict API to internal network; do not expose publicly.   |
-| Resource abuse      | Set Kubernetes resource limits; monitor inbound peers.      |
-| IPNS key compromise | Store keystore on encrypted PVC; restrict access.           |
-| OrbitDB spam        | Implement basic filtering (max record size, rate limiting). |
+| Vector              | Enhanced Mitigation                                                                          |
+| ------------------- | -------------------------------------------------------------------------------------------- |
+| API exposure        | **Security façades only**; raw Kubo API internal cluster only                                |
+| Resource abuse      | **Multi-layer protection**: rate limits, quotas, size limits, Kubernetes resource limits     |
+| Remote CID abuse    | **Content validation pipeline**: schema validation, codec restrictions, single-block pins    |
+| IPNS key compromise | **Encrypted keystore** on PVC with proper RBAC and secret management                         |
+| OrbitDB spam        | **Comprehensive filtering**: topic allowlisting, JSON validation, size limits, rate limiting |
+| Gateway abuse       | **Gateway completely disabled**: no HTTP gateway exposure                                    |
+| Pubsub flooding     | **Topic-based allowlisting**: regex patterns, message size limits, subscription caps         |
+
+#### 4.9.1 Client-Side Security Requirements
+
+**Clients MUST implement additional security validations:**
+
+| Requirement           | Implementation                                                                |
+| --------------------- | ----------------------------------------------------------------------------- |
+| **Pubsub validation** | Schema validation, monotonic timestamps, author verification, no auto-pinning |
+| **IPNS freshness**    | Sequence number tracking, expiry checking, signature validation               |
+| **Content bounds**    | Pre-validate size limits, schema compliance before API calls                  |
+| **Error handling**    | Graceful handling of 413, 415, 429, 507 error responses                       |
+| **Retry logic**       | Exponential backoff (500ms→4s, max 5 attempts), respect rate limits           |
 
 ### 4.10 Kubernetes Sketch
 

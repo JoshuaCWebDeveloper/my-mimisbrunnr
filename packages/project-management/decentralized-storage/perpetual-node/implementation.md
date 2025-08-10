@@ -51,28 +51,44 @@ docker-compose.yml                  # Multi-service orchestration
 
 The perpetual-node package provides a custom OrbitDB management service and nginx filtering proxy. It works alongside the official Kubo IPFS container:
 
-### IPFS API Filtering Proxy
+### Security Hardened IPFS API Proxy
 
-**Purpose:** Provides defensive filtering for public IPFS API access
+**Purpose:** Provides Kubo-compatible façades with comprehensive security validation
 
 **Configuration:**
 
 -   **Image**: `openresty/openresty:alpine` (nginx + Lua scripting)
 -   **Exposed Port**: 5001 (replaces direct kubo exposure)
--   **Config File**: `config/nginx.conf` with Lua content inspection
+-   **Config File**: `config/nginx.conf` with comprehensive Lua façades
 
-**Binary Content Detection:**
+**Security Façades:**
 
 ```lua
--- Detect null bytes (primary binary indicator)
-if string.find(body, string.char(0)) then
-    return 415 "Binary files not allowed"
-end
+-- /api/v0/pin/add façade with validation pipeline
+location = /api/v0/pin/add {
+    -- 1. Rate limiting and quota enforcement
+    -- 2. CID format validation
+    -- 3. Root block prefetch (≤1MB)
+    -- 4. DAG-JSON/CBOR validation
+    -- 5. Schema validation via sidecar
+    -- 6. Single-block pin (recursive=false)
+}
 
--- Analyze non-printable character ratio
-if binary_chars / sample_size > 0.05 then
-    return 415 "Binary files not allowed"
-end
+-- /api/v0/dag/get façade with size limits
+location = /api/v0/dag/get {
+    -- 1. CID validation
+    -- 2. Stream with 1MB cap
+    -- 3. JSON decode validation
+    -- 4. Schema validation
+}
+
+-- Pubsub façades for OrbitDB compatibility
+location = /api/v0/pubsub/pub {
+    -- Topic allowlist, JSON validation, 64KB limit
+}
+location = /api/v0/pubsub/sub {
+    -- Topic allowlist, subscription limits
+}
 ```
 
 ### Custom OrbitDB Manager Service
@@ -91,12 +107,30 @@ end
 
     - Auto-pin OrbitDB log entries as they replicate
     - Pin OrbitDB log heads for availability
-    - Basic cleanup of very old entries (storage management only)
+    - Periodic scan and traversal of log heads for comprehensive pinning
+    - Maintain JSON index of pinned content for monitoring
 
 3. **IPFS Infrastructure**
-    - Provide IPFS API endpoint for client pinning requests
+    - Coordinate with security façades for validated content pinning
     - Maintain IPFS node availability and peer connections
-    - Basic defensive rate limiting on API endpoints
+    - Export pinning metrics to Prometheus (optional)
+
+### Validation Sidecar Service
+
+**Purpose:** Provides AJV-based JSON schema validation for content security
+
+**Core Responsibilities:**
+
+1. **Schema Validation**
+
+    - Validate `taglist/v1` schema for tag collections
+    - Validate `pubsub/head/v1` schema for pubsub messages
+    - Fast validation with clear error responses
+
+2. **Integration**
+    - HTTP service on port 3000
+    - POST `/validate` endpoint with schema selection
+    - Used by nginx Lua façades for real-time validation
 
 ## Key Service Components
 
@@ -219,7 +253,7 @@ export class BasicRateLimiter {
 ```bash
 # IPFS Configuration
 IPFS_API_URL=http://kubo:5001
-IPFS_GATEWAY_URL=http://kubo:8080
+# Note: IPFS Gateway disabled for security
 
 # OrbitDB Configuration
 ORBITDB_LOG_NAME=xcom-taglist-discovery
@@ -230,10 +264,21 @@ PORT=3000
 LOG_LEVEL=info
 HEALTH_CHECK_INTERVAL=30000
 
-# Basic Configuration
+# Security Configuration - Tunable Parameters
+API_RPM=60                              # Requests per minute per IP
+PIN_ADD_MAX_PER_IP_PER_DAY=2000        # Daily pin quota per IP
+PIN_ADD_BURST=30                        # Pin request burst capacity
+DAG_GET_BURST=60                        # DAG read burst capacity
+PUBSUB_PUB_BURST=60                     # Pubsub publish burst
+PUBSUB_SUB_BURST=60                     # Pubsub subscribe burst
+
+# Operational Configuration
 STORAGE_CLEANUP_INTERVAL=3600000
 MAX_LOG_ENTRIES_PINNED=1000
-API_RATE_LIMIT_PER_IP=100
+IPNS_REPUBLISH_PERIOD=14400             # 4 hours (reduced from 12h default)
+
+# Extension Configuration
+EXT_ID=chrome-extension-id-here         # For CORS configuration
 ```
 
 ### OrbitDB Manager Configuration
@@ -277,8 +322,12 @@ export const config = {
 
 ### Docker Images Used
 
--   `ipfs/kubo:latest` - Official Kubo IPFS implementation
+-   `ipfs/kubo@sha256:PINNED_DIGEST` - Official Kubo IPFS (never use :latest)
+-   `openresty/openresty:alpine` - Nginx + Lua for security façades
 -   `node:18-alpine` - Base image for custom OrbitDB service
+-   `node:18-alpine` - Base image for validation sidecar service
+
+**Security Note:** All images use pinned SHA256 digests, not floating tags
 
 ## Health Monitoring
 
@@ -300,33 +349,117 @@ GET /health/pins - Pinning service status
 -   IPFS connection status
 -   Disk usage for pinned content
 
-## Security Considerations
+## Security Hardening
 
-### Defensive Infrastructure Protection
+### Comprehensive API Protection
 
--   **IPFS API Filtering**: Nginx proxy with Lua scripting blocks binary content uploads
--   **Content Inspection**: Detects null bytes and high ratios of non-printable characters
--   **Size Limiting**: 1MB maximum request size to prevent resource exhaustion
--   **Endpoint Filtering**: Only `/add`, `/pin/add`, `/cat`, `/get` endpoints allowed
--   **Rate Limiting**: 10 req/sec per IP with burst allowances
--   Health check endpoint exposed but read-only
--   Basic request tracking per IP address
--   Resource usage monitoring
+**Multi-Layer Validation Pipeline:**
 
-### Minimal Attack Surface
+-   **Rate Limiting**: Per-IP quotas with tunable burst capacity
+-   **Content Size Enforcement**: Hard 1MB limit for all remote pinning
+-   **Codec Restrictions**: DAG-JSON/DAG-CBOR only (no UnixFS/raw/dag-pb)
+-   **Schema Validation**: AJV-based JSON schema enforcement
+-   **Single-Block Pinning**: Forced `recursive=false` to prevent DAG traversal
 
--   No business logic validation (handled by clients)
--   No semantic content validation (JSON structure, DID proofs, etc.)
--   No custom authentication or authorization
--   Standard IPFS/OrbitDB protocols only
+**Kubo Configuration Hardening:**
 
-### Resource Management
+-   **Gateway Disabled**: `Addresses.Gateway=""` removes HTTP gateway entirely
+-   **No Auto-Discovery Pinning**: Node never auto-pins from pubsub/discovery
+-   **P2P Proxy Disabled**: `Experimental.P2pHttpProxy=false`
+-   **Repository Limits**: `Datastore.StorageMax` and `GCPeriod` configured
+-   **IPNS Republish Tuning**: Reduced to 4h for fresher resolution
 
--   Basic storage cleanup of very old OrbitDB entries
--   Simple pin count limits for storage management
--   Memory usage limits for OrbitDB operations
--   Disk usage monitoring
+**API Surface Restriction:**
 
-**Note:** All cryptographic validation, identity verification, and business logic security is handled by clients. The node provides neutral infrastructure only.
+-   **Allowed**: `/api/v0/pin/add`, `/api/v0/dag/get`, `/api/v0/pubsub/*` (via façades)
+-   **Blocked**: `/api/v0/add`, `/api/v0/block/*`, `/api/v0/object/*`, `/api/v0/files/*`
+-   **CORS**: Extension origin only (`chrome-extension://<EXT_ID>`)
 
-This simplified architecture provides essential infrastructure services while maintaining the decentralized nature of the network by avoiding centralized business logic validation.
+### Pubsub Security for OrbitDB
+
+**Topic Allowlisting:**
+
+-   Pattern: `^mimis/(taglist|discovery)/[a-z0-9\-]{1,64}$`
+-   Message size limit: 64KB
+-   JSON-only content validation
+-   Schema validation via sidecar
+
+**Subscription Management:**
+
+-   Max 2 concurrent subscriptions per IP
+-   Idle timeout: 2 minutes with 30s heartbeat
+-   Rate limiting on pub/sub actions
+
+### Operational Security
+
+**Monitoring and Metrics:**
+
+-   `pin_add_facade_attempts_total` - Total pin attempts
+-   `pin_add_facade_rejected_bytes_total` - Rejected content size
+-   `pin_add_facade_success_total` - Successful pins
+-   Per-IP 413/415/429 error rate tracking
+-   Kubo repo size and GC run monitoring
+
+**Resource Protection:**
+
+-   Kubernetes resource limits on containers
+-   Inbound peer monitoring
+-   OrbitDB spam filtering (size + rate limits)
+-   IPNS keystore encryption on PVC
+
+**Backup and Recovery:**
+
+-   Periodic `ipfs repo backup` (daily)
+-   Off-cluster encrypted storage (S3 compatible)
+-   Pinning index maintenance for disaster recovery
+
+### Client-Side Security Requirements
+
+**Content Validation (Client Must Implement):**
+
+-   Pubsub message schema validation against `pubsub/head/v1`
+-   Monotonic timestamp checking per topic
+-   Author DID binding and signature verification
+-   No auto-pinning from discovery - explicit façade calls only
+
+**IPNS Freshness Validation:**
+
+-   Monotonic sequence number tracking
+-   IPNS record expiry/EOL checking
+-   Signature validation for all IPNS records
+
+**Note:** The node provides secure infrastructure with comprehensive validation. Clients must implement additional semantic validation for full security.
+
+## Implementation Files
+
+### Security Façade Implementation
+
+**Complete Nginx + Lua Implementation:** See example files:
+
+-   [`config/nginx.conf`](./nginx.conf) - Complete OpenResty configuration
+-   [`config/lua/pin_add_facade.lua`](./pin_add_facade.lua) - Pin/add façade with validation
+-   [`config/lua/dag_get_facade.lua`](./dag_get_facade.lua) - DAG/get façade with size limits
+-   [`config/lua/pubsub_facades.lua`](./pubsub_facades.lua) - Pubsub façades for OrbitDB
+
+### Validation Sidecar Implementation
+
+**AJV Validation Service:** See example files:
+
+-   [`src/validator/index.ts`](./validator-index.ts) - Complete validation service
+-   [`config/validator-schemas.json`](./validator-schemas.json) - JSON schema definitions
+
+### Enhanced OrbitDB Manager
+
+**Security-Enhanced Service:** See example files:
+
+-   [`src/services/enhanced-orbitdb-manager.ts`](./enhanced-orbitdb-manager.ts) - Enhanced manager
+-   [`src/services/pinning-index.ts`](./pinning-index.ts) - JSON pinning index maintenance
+
+### Testing and Monitoring
+
+**Security Test Suite:** See example files:
+
+-   [`test/security/facade-tests.spec.ts`](./facade-tests.spec.ts) - Comprehensive security tests
+-   [`config/monitoring/security-metrics.yaml`](./security-metrics.yaml) - Prometheus monitoring
+
+This architecture provides comprehensive security hardening while maintaining the decentralized nature of the network through validated, but not centralized, infrastructure services.

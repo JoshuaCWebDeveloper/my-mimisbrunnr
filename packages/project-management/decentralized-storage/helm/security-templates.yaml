@@ -1,0 +1,245 @@
+# Kubernetes Security Templates for Helm Deployment
+# These templates should be placed in packages/helm/templates/security/
+
+# File: packages/helm/templates/security/pod-security.yaml
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.global.namespace }}
+  labels:
+    # Pod Security Standards - Restricted mode
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+
+---
+# File: packages/helm/templates/security/rbac.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: perpetual-node-sa
+  namespace: {{ .Values.global.namespace }}
+automountServiceAccountToken: false
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: {{ .Values.global.namespace }}
+  name: perpetual-node-role
+rules:
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["get", "list"]
+  resourceNames:
+    - "ipfs-config"
+    - "nginx-config"
+    - "validator-schemas"
+    - "ipns-keystore-key"
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+  fieldSelectors:
+    - metadata.namespace={{ .Values.global.namespace }}
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: perpetual-node-rolebinding
+  namespace: {{ .Values.global.namespace }}
+subjects:
+- kind: ServiceAccount
+  name: perpetual-node-sa
+  namespace: {{ .Values.global.namespace }}
+roleRef:
+  kind: Role
+  name: perpetual-node-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# File: packages/helm/templates/security/network-policy.yaml
+# Default deny all traffic
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: {{ .Values.global.namespace }}
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+
+---
+# Allow ipfs-proxy to communicate with kubo and validator
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ipfs-proxy-egress
+  namespace: {{ .Values.global.namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app: ipfs-proxy
+  policyTypes:
+  - Egress
+  egress:
+  # Allow to kubo on port 5001
+  - to:
+    - podSelector:
+        matchLabels:
+          app: kubo
+    ports:
+    - protocol: TCP
+      port: 5001
+  # Allow to validator on port 3000
+  - to:
+    - podSelector:
+        matchLabels:
+          app: validator
+    ports:
+    - protocol: TCP
+      port: 3000
+  # Allow DNS resolution
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53
+
+---
+# Allow external access to ipfs-proxy on port 5001
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ipfs-proxy-ingress
+  namespace: {{ .Values.global.namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app: ipfs-proxy
+  policyTypes:
+  - Ingress
+  ingress:
+  - from: []  # Allow from any source (controlled by ingress)
+    ports:
+    - protocol: TCP
+      port: 5001
+
+---
+# Allow kubo P2P swarm traffic
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kubo-p2p-traffic
+  namespace: {{ .Values.global.namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app: kubo
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # P2P swarm port
+  - from: []
+    ports:
+    - protocol: TCP
+      port: 4001
+  # Internal API access from proxy
+  - from:
+    - podSelector:
+        matchLabels:
+          app: ipfs-proxy
+    ports:
+    - protocol: TCP
+      port: 5001
+  # OrbitDB manager access
+  - from:
+    - podSelector:
+        matchLabels:
+          app: orbitdb-manager
+    ports:
+    - protocol: TCP
+      port: 5001
+  egress:
+  # Allow outbound P2P connections
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 4001
+  # Allow DNS resolution
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53
+
+---
+# File: packages/helm/templates/security/secrets.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ipns-keystore-key
+  namespace: {{ .Values.global.namespace }}
+type: Opaque
+data:
+  encryption-key: {{ .Values.security.keystoreEncryptionKey | b64enc }}
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: extension-config
+  namespace: {{ .Values.global.namespace }}
+type: Opaque
+data:
+  extension-id: {{ .Values.security.extensionId | b64enc }}
+
+---
+# File: packages/helm/templates/security/certificates.yaml (if using cert-manager)
+{{- if .Values.security.enableTLS }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: perpetual-node-tls
+  namespace: {{ .Values.global.namespace }}
+spec:
+  secretName: perpetual-node-tls-secret
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+  - {{ .Values.security.hostname }}
+{{- end }}
+
+---
+# File: packages/helm/templates/security/pod-security-policy.yaml
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: perpetual-node-psp
+  namespace: {{ .Values.global.namespace }}
+spec:
+  privileged: false
+  allowPrivilegeEscalation: false
+  requiredDropCapabilities:
+    - ALL
+  volumes:
+    - 'configMap'
+    - 'emptyDir'
+    - 'projected'
+    - 'secret'
+    - 'downwardAPI'
+    - 'persistentVolumeClaim'
+  runAsUser:
+    rule: 'MustRunAsNonRoot'
+  seLinux:
+    rule: 'RunAsAny'
+  fsGroup:
+    rule: 'RunAsAny'
+
+
+
+
