@@ -1,0 +1,14 @@
+{
+  "name": "@my-mimisbrunnr/prettier-plugin-helm",
+  "version": "0.0.1",
+  "private": true,
+  "license": "MIT",
+  "main": "index.js",
+  "files": [
+    "index.js",
+    "README.md"
+  ],
+  "peerDependencies": {
+    "prettier": ">=2.0.0 <3"
+  }
+}
