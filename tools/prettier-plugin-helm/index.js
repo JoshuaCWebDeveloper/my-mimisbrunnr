@@ -45,7 +45,13 @@ function formatTag(rawLine) {
 }
 
 function parse(text /*, parsers, options */) {
-    const lines = text.split(/\r?\n/);
+    let lines = text.split(/\r?\n/);
+    // Remove trailing empty line if text ended with newline
+    if (text.endsWith('\n') || text.endsWith('\r\n')) {
+        if (lines[lines.length - 1] === '') {
+            lines = lines.slice(0, -1);
+        }
+    }
     const hasTemplates = HAS_TEMPLATE_ANYWHERE_RE.test(text);
     return { type: 'HelmDoc', hasTemplates, lines };
 }
@@ -56,6 +62,7 @@ const printer = {
 
         if (!node.hasTemplates) {
             // No templates: return original text unchanged (safer than trying YAML in 2.x).
+            // Always add exactly one trailing newline to match prettier's YAML behavior
             return concat([join(hardline, node.lines), hardline]);
         }
 
@@ -69,6 +76,7 @@ const printer = {
             return line.replace(/[ \t]+$/g, ''); // strip trailing whitespace only
         });
 
+        // Always add exactly one trailing newline to match prettier's YAML behavior
         return concat([join(hardline, out), hardline]);
     },
     embed: () => null,
