@@ -5,7 +5,8 @@
   "license": "MIT",
   "workspaces": [
     "packages/*",
-    "tools/*"
+    "tools/*",
+    "packages/shared/*"
   ],
   "scripts": {
     "build": "nx build",

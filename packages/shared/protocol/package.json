@@ -1,0 +1,42 @@
+{
+  "name": "@my-mimisbrunnr/protocol",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "main": "./dist/src/index.js",
+  "module": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "dependencies": {
+    "tslib": "^2.3.0"
+  },
+  "nx": {
+    "targets": {
+      "build": {
+        "executor": "@nx/js:tsc",
+        "outputs": [
+          "{options.outputPath}"
+        ],
+        "dependsOn": [
+          "^build"
+        ],
+        "options": {
+          "outputPath": "packages/shared/protocol/dist",
+          "main": "packages/shared/protocol/src/index.ts",
+          "tsConfig": "packages/shared/protocol/tsconfig.lib.json",
+          "format": [
+            "esm"
+          ]
+        }
+      }
+    }
+  }
+}
