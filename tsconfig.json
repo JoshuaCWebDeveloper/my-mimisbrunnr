@@ -5,6 +5,18 @@
   "references": [
     {
       "path": "./packages/mimisbrunnr-ext"
+    },
+    {
+      "path": "./packages/shared/protocol"
+    },
+    {
+      "path": "./packages/shared/config"
+    },
+    {
+      "path": "./packages/shared/validation"
+    },
+    {
+      "path": "./packages/perpetual-node"
     }
   ]
 }

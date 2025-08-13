@@ -1,0 +1,59 @@
+{
+  "name": "@my-mimisbrunnr/perpetual-node",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "dependencies": {
+    "@my-mimisbrunnr/protocol": "^0.0.1",
+    "tslib": "^2.3.0"
+  },
+  "nx": {
+    "targets": {
+      "build": {
+        "executor": "@nx/js:tsc",
+        "outputs": [
+          "{options.outputPath}"
+        ],
+        "dependsOn": [
+          "^build"
+        ],
+        "options": {
+          "outputPath": "packages/perpetual-node/dist",
+          "main": "packages/perpetual-node/src/index.ts",
+          "tsConfig": "packages/perpetual-node/tsconfig.lib.json"
+        }
+      },
+      "dev": {
+        "executor": "@nx/js:node",
+        "options": {
+          "buildTarget": "@my-mimisbrunnr/perpetual-node:build",
+          "runBuildTargetDependencies": true
+        }
+      },
+      "lint": {
+        "executor": "@nx/eslint:lint",
+        "options": {
+          "lintFilePatterns": [
+            "packages/perpetual-node/**/*.ts"
+          ]
+        }
+      },
+      "test": {
+        "executor": "@nx/vite:test",
+        "options": {}
+      }
+    }
+  }
+}
