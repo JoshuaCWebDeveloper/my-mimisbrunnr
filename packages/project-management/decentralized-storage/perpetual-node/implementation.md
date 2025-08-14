@@ -475,22 +475,25 @@ This architecture provides comprehensive security hardening while maintaining th
 **Scope:** Implement and test the three shared libraries with comprehensive unit tests
 
 **Components:**
-- `@my-mimisbrunnr/shared-protocol` - DiscoveryRecord interface
-- `@my-mimisbrunnr/shared-config` - Protocol constants, validation limits
-- `@my-mimisbrunnr/shared-validation` - Core validation functions
+
+-   `@my-mimisbrunnr/shared-protocol` - DiscoveryRecord interface
+-   `@my-mimisbrunnr/shared-config` - Protocol constants, validation limits
+-   `@my-mimisbrunnr/shared-validation` - Core validation functions
 
 **Testing Requirements:**
-- Unit tests for all validation functions (95%+ coverage)
-- Type safety tests for interfaces
-- Configuration constant validation tests  
-- Performance tests for validation functions
-- Mock data generation utilities for testing other components
+
+-   Unit tests for all validation functions (95%+ coverage)
+-   Type safety tests for interfaces
+-   Configuration constant validation tests
+-   Performance tests for validation functions
+-   Mock data generation utilities for testing other components
 
 **Deliverables:**
-- Functional shared libraries matching specification
-- Comprehensive test suites
-- Updated perpetual-node package.json dependencies
-- Documentation for library usage
+
+-   Functional shared libraries matching specification
+-   Comprehensive test suites
+-   Updated perpetual-node package.json dependencies
+-   Documentation for library usage
 
 **Estimated Effort:** 1 session
 
@@ -505,25 +508,28 @@ This architecture provides comprehensive security hardening while maintaining th
 **Scope:** Implement OrbitDB Manager service with IPFS integration and comprehensive testing
 
 **Components:**
-- OrbitDB Manager service (`src/services/orbitdb-manager.ts`)
-- Replication Handler service (`src/services/replication-handler.ts`)
-- IPFS Client wrapper (`src/services/ipfs-client.ts`)
-- Health check endpoints (`src/utils/health-check.ts`)
-- Basic rate limiter (`src/services/rate-limiter.ts`)
+
+-   OrbitDB Manager service (`src/services/orbitdb-manager.ts`)
+-   Replication Handler service (`src/services/replication-handler.ts`)
+-   IPFS Client wrapper (`src/services/ipfs-client.ts`)
+-   Health check endpoints (`src/utils/health-check.ts`)
+-   Basic rate limiter (`src/services/rate-limiter.ts`)
 
 **Testing Requirements:**
-- Unit tests for each service component
-- Integration tests with mock IPFS/OrbitDB
-- Health check endpoint functional tests
-- Rate limiter behavior tests
-- Error handling and recovery tests
-- Performance tests for replication handling
+
+-   Unit tests for each service component
+-   Integration tests with mock IPFS/OrbitDB
+-   Health check endpoint functional tests
+-   Rate limiter behavior tests
+-   Error handling and recovery tests
+-   Performance tests for replication handling
 
 **Deliverables:**
-- Working OrbitDB service with IPFS integration
-- Comprehensive test suite
-- Health monitoring endpoints
-- Service startup/shutdown procedures
+
+-   Working OrbitDB service with IPFS integration
+-   Comprehensive test suite
+-   Health monitoring endpoints
+-   Service startup/shutdown procedures
 
 **Estimated Effort:** 1 session
 
@@ -538,25 +544,28 @@ This architecture provides comprehensive security hardening while maintaining th
 **Scope:** Implement security proxy layer with Nginx + Lua façades and validation service
 
 **Components:**
-- Nginx configuration with OpenResty (`config/nginx.conf`)
-- Lua security façades for IPFS API endpoints
-- AJV validation sidecar service (`src/validator/`)
-- Rate limiting and quota enforcement
-- Content validation pipeline
+
+-   Nginx configuration with OpenResty (`config/nginx.conf`)
+-   Lua security façades for IPFS API endpoints
+-   AJV validation sidecar service (`src/validator/`)
+-   Rate limiting and quota enforcement
+-   Content validation pipeline
 
 **Testing Requirements:**
-- Security façade unit tests (Lua testing framework)
-- Validation sidecar functional tests
-- Rate limiting behavior tests
-- Content size and format validation tests
-- Attack simulation tests (oversized content, malformed requests)
-- Performance tests under load
+
+-   Security façade unit tests (Lua testing framework)
+-   Validation sidecar functional tests
+-   Rate limiting behavior tests
+-   Content size and format validation tests
+-   Attack simulation tests (oversized content, malformed requests)
+-   Performance tests under load
 
 **Deliverables:**
-- Hardened IPFS API proxy
-- Validation service with schema enforcement
-- Security test suite
-- Attack mitigation verification
+
+-   Hardened IPFS API proxy
+-   Validation service with schema enforcement
+-   Security test suite
+-   Attack mitigation verification
 
 **Estimated Effort:** 1 session
 
@@ -571,26 +580,29 @@ This architecture provides comprehensive security hardening while maintaining th
 **Scope:** Docker composition and service orchestration with functional testing
 
 **Components:**
-- Docker Compose configuration
-- Kubo IPFS container setup and configuration
-- Service networking and communication
-- Environment variable management
-- Container health checks
+
+-   Docker Compose configuration
+-   Kubo IPFS container setup and configuration
+-   Service networking and communication
+-   Environment variable management
+-   Container health checks
 
 **Testing Requirements:**
-- Container startup/shutdown tests
-- Service communication tests
-- Health check integration tests
-- Configuration validation tests
-- Resource limit enforcement tests
-- Service recovery tests (container restart scenarios)
+
+-   Container startup/shutdown tests
+-   Service communication tests
+-   Health check integration tests
+-   Configuration validation tests
+-   Resource limit enforcement tests
+-   Service recovery tests (container restart scenarios)
 
 **Deliverables:**
-- Complete Docker Compose setup
-- Service orchestration
-- Configuration management
-- Infrastructure test suite
-- Deployment documentation
+
+-   Complete Docker Compose setup
+-   Service orchestration
+-   Configuration management
+-   Infrastructure test suite
+-   Deployment documentation
 
 **Estimated Effort:** 1 session
 
@@ -605,26 +617,29 @@ This architecture provides comprehensive security hardening while maintaining th
 **Scope:** Comprehensive end-to-end testing across all services
 
 **Components:**
-- Full system integration tests
-- Client-to-node communication tests
-- OrbitDB replication testing across multiple nodes
-- Performance benchmarking
-- Security penetration testing
-- Disaster recovery testing
+
+-   Full system integration tests
+-   Client-to-node communication tests
+-   OrbitDB replication testing across multiple nodes
+-   Performance benchmarking
+-   Security penetration testing
+-   Disaster recovery testing
 
 **Testing Requirements:**
-- Multi-node OrbitDB replication tests
-- Extension-to-node integration tests
-- Load testing and performance benchmarking
-- Security testing with real attack scenarios
-- Backup/restore procedure testing
-- Network partition recovery testing
+
+-   Multi-node OrbitDB replication tests
+-   Extension-to-node integration tests
+-   Load testing and performance benchmarking
+-   Security testing with real attack scenarios
+-   Backup/restore procedure testing
+-   Network partition recovery testing
 
 **Deliverables:**
-- Comprehensive E2E test suite
-- Performance benchmarks
-- Security audit results
-- Operational runbooks
+
+-   Comprehensive E2E test suite
+-   Performance benchmarks
+-   Security audit results
+-   Operational runbooks
 
 **Estimated Effort:** 1 session
 
@@ -636,7 +651,7 @@ This architecture provides comprehensive security hardening while maintaining th
 MM-18 (Foundation)
   ↓
 MM-19 (Core OrbitDB)
-  ↓  
+  ↓
 MM-20 (Security Layer)
   ↓
 MM-21 (Infrastructure)
@@ -645,6 +660,7 @@ MM-22 (E2E Testing - Optional)
 ```
 
 **Recommended Implementation Order:**
+
 1. **MM-18** - Essential foundation for all other components
 2. **MM-19** - Core functionality must work before adding security
 3. **MM-20** - Security layer after core functionality is proven
