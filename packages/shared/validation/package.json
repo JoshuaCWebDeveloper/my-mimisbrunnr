@@ -16,6 +16,8 @@
     }
   },
   "dependencies": {
+    "@my-mimisbrunnr/protocol": "^0.0.1",
+    "@my-mimisbrunnr/config": "^0.0.1",
     "tslib": "^2.3.0"
   }
 }

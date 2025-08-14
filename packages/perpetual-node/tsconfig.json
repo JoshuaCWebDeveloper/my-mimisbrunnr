@@ -4,6 +4,12 @@
   "include": [],
   "references": [
     {
+      "path": "../shared/validation"
+    },
+    {
+      "path": "../shared/config"
+    },
+    {
       "path": "../shared/protocol"
     },
     {
