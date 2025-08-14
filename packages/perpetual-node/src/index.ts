@@ -7,7 +7,7 @@ import {
 } from '@my-mimisbrunnr/config';
 import {
     validateDiscoveryRecord,
-    checkRateLimit,
+    RateLimitTracker,
     validateHandle,
     validateContentSize,
 } from '@my-mimisbrunnr/validation';
@@ -40,12 +40,16 @@ function testSharedLibrariesIntegration(): void {
     );
     console.log(`✅ Size validation: ${isValidSize}`);
 
-    // Test rate limiting with config
+    // Test rate limiting with config using OOP pattern
+    const rateLimitTracker = new RateLimitTracker();
     const rateLimitConfig: RateLimitConfig = {
         windowMs: PROTOCOL.IPFS_TIMEOUT,
         maxRequests: VALIDATION_LIMITS.MAX_RATE_LIMIT_REQUESTS,
     };
-    const rateLimitCheck = checkRateLimit('test-client', rateLimitConfig);
+    const rateLimitCheck = rateLimitTracker.checkRateLimit(
+        'test-client',
+        rateLimitConfig
+    );
     console.log(`✅ Rate limit check: ${rateLimitCheck}`);
 
     // Test config constants

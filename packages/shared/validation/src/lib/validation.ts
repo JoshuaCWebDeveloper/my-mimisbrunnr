@@ -30,75 +30,85 @@ export function validateDiscoveryRecord(
 /**
  * Rate limiting tracker for request counting
  */
-const rateLimitTrackers = new Map<
-    string,
-    Array<{ timestamp: number; count: number }>
->();
+export class RateLimitTracker {
+    private trackers = new Map<
+        string,
+        Array<{ timestamp: number; count: number }>
+    >();
 
-/**
- * Rate limiting used by perpetual node
- */
-export function checkRateLimit(
-    identifier: string,
-    config: RateLimitConfig
-): boolean {
-    const now = Date.now();
-    const windowStart = now - config.windowMs;
+    /**
+     * Check if a request is within rate limits
+     */
+    checkRateLimit(identifier: string, config: RateLimitConfig): boolean {
+        const now = Date.now();
+        const windowStart = now - config.windowMs;
 
-    if (!rateLimitTrackers.has(identifier)) {
-        rateLimitTrackers.set(identifier, []);
-    }
-
-    const tracker = rateLimitTrackers.get(identifier) || [];
-
-    // Remove expired entries
-    const validEntries = tracker.filter(entry => entry.timestamp > windowStart);
-
-    // Count total requests in window
-    const totalRequests = validEntries.reduce(
-        (sum, entry) => sum + entry.count,
-        0
-    );
-
-    if (totalRequests >= config.maxRequests) {
-        return false;
-    }
-
-    // Add current request
-    validEntries.push({ timestamp: now, count: 1 });
-    rateLimitTrackers.set(identifier, validEntries);
-
-    return true;
-}
-
-/**
- * Track a request for rate limiting
- */
-export function trackRequest(identifier: string): void {
-    const now = Date.now();
-
-    if (!rateLimitTrackers.has(identifier)) {
-        rateLimitTrackers.set(identifier, []);
-    }
-
-    const tracker = rateLimitTrackers.get(identifier) || [];
-    tracker.push({ timestamp: now, count: 1 });
-    rateLimitTrackers.set(identifier, tracker);
-}
-
-/**
- * Clean up old rate limiting data
- */
-export function cleanupRateLimitData(maxAge = 3600000): void {
-    const cutoff = Date.now() - maxAge;
-
-    for (const [identifier, tracker] of rateLimitTrackers.entries()) {
-        const validEntries = tracker.filter(entry => entry.timestamp > cutoff);
-        if (validEntries.length === 0) {
-            rateLimitTrackers.delete(identifier);
-        } else {
-            rateLimitTrackers.set(identifier, validEntries);
+        if (!this.trackers.has(identifier)) {
+            this.trackers.set(identifier, []);
         }
+
+        const tracker = this.trackers.get(identifier) || [];
+
+        // Remove expired entries
+        const validEntries = tracker.filter(
+            entry => entry.timestamp > windowStart
+        );
+
+        // Count total requests in window
+        const totalRequests = validEntries.reduce(
+            (sum, entry) => sum + entry.count,
+            0
+        );
+
+        if (totalRequests >= config.maxRequests) {
+            return false;
+        }
+
+        // Add current request
+        validEntries.push({ timestamp: now, count: 1 });
+        this.trackers.set(identifier, validEntries);
+
+        return true;
+    }
+
+    /**
+     * Track a request without checking limits
+     */
+    trackRequest(identifier: string): void {
+        const now = Date.now();
+
+        if (!this.trackers.has(identifier)) {
+            this.trackers.set(identifier, []);
+        }
+
+        const tracker = this.trackers.get(identifier) || [];
+        tracker.push({ timestamp: now, count: 1 });
+        this.trackers.set(identifier, tracker);
+    }
+
+    /**
+     * Clean up old rate limiting data
+     */
+    cleanupOldData(maxAge = 3600000): void {
+        const cutoff = Date.now() - maxAge;
+
+        for (const [identifier, tracker] of this.trackers.entries()) {
+            const validEntries = tracker.filter(
+                entry => entry.timestamp > cutoff
+            );
+            if (validEntries.length === 0) {
+                this.trackers.delete(identifier);
+            } else {
+                this.trackers.set(identifier, validEntries);
+            }
+        }
+    }
+
+    /**
+     * Clear all tracking data
+     */
+    clear(): void {
+        this.trackers.clear();
     }
 }
 
@@ -139,6 +149,9 @@ export function validateContentSize(size: number): boolean {
  * Discovery record size validation
  */
 export function validateDiscoveryRecordSize(recordJson: string): boolean {
+    if (!recordJson || recordJson.trim().length === 0) {
+        return false; // Reject empty records
+    }
     const sizeBytes = new TextEncoder().encode(recordJson).length;
     return sizeBytes <= VALIDATION_LIMITS.MAX_DISCOVERY_RECORD_SIZE;
 }
