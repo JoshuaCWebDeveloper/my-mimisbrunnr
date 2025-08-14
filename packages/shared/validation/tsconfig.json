@@ -4,6 +4,12 @@
   "include": [],
   "references": [
     {
+      "path": "../config"
+    },
+    {
+      "path": "../protocol"
+    },
+    {
       "path": "./tsconfig.lib.json"
     },
     {
