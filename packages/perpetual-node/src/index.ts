@@ -1,4 +1,5 @@
 // Integration test: Import all shared libraries to verify they work together
+import log from 'loglevel';
 import { DiscoveryRecord } from '@my-mimisbrunnr/protocol';
 import {
     PROTOCOL,
@@ -16,7 +17,7 @@ export * from './lib/perpetual-node.js';
 
 // Integration test function
 function testSharedLibrariesIntegration(): void {
-    console.log('🧪 Testing shared libraries integration...');
+    log.info('🧪 Testing shared libraries integration...');
 
     // Test protocol + validation integration
     const testRecord: DiscoveryRecord = {
@@ -29,16 +30,16 @@ function testSharedLibrariesIntegration(): void {
     };
 
     const isValidRecord = validateDiscoveryRecord(testRecord);
-    console.log(`✅ DiscoveryRecord validation: ${isValidRecord}`);
+    log.info(`✅ DiscoveryRecord validation: ${isValidRecord}`);
 
     // Test config + validation integration
     const isValidHandle = validateHandle(testRecord.handle);
-    console.log(`✅ Handle validation: ${isValidHandle}`);
+    log.info(`✅ Handle validation: ${isValidHandle}`);
 
     const isValidSize = validateContentSize(
         VALIDATION_LIMITS.MAX_DISCOVERY_RECORD_SIZE
     );
-    console.log(`✅ Size validation: ${isValidSize}`);
+    log.info(`✅ Size validation: ${isValidSize}`);
 
     // Test rate limiting with config using OOP pattern
     const rateLimitTracker = new RateLimitTracker();
@@ -50,16 +51,16 @@ function testSharedLibrariesIntegration(): void {
         'test-client',
         rateLimitConfig
     );
-    console.log(`✅ Rate limit check: ${rateLimitCheck}`);
+    log.info(`✅ Rate limit check: ${rateLimitCheck}`);
 
     // Test config constants
-    console.log(`✅ Protocol version: ${PROTOCOL.VERSION}`);
-    console.log(`✅ OrbitDB log name: ${PROTOCOL.ORBITDB_LOG_NAME}`);
-    console.log(
+    log.info(`✅ Protocol version: ${PROTOCOL.VERSION}`);
+    log.info(`✅ OrbitDB log name: ${PROTOCOL.ORBITDB_LOG_NAME}`);
+    log.info(
         `✅ Max content size: ${VALIDATION_LIMITS.MAX_CONTENT_SIZE} bytes`
     );
 
-    console.log('🎉 All shared libraries working together successfully!');
+    log.info('🎉 All shared libraries working together successfully!');
 }
 
 // Run integration test

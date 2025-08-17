@@ -1,3 +1,4 @@
+import log from 'loglevel';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 import { styled } from 'styled-components';
@@ -203,7 +204,7 @@ export const TagManager = () => {
     }, []);
 
     const handleError = useCallback((error: Error) => {
-        console.error(error);
+        log.error(error);
     }, []);
 
     if (isOnX === null) {

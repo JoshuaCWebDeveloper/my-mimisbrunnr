@@ -1,3 +1,4 @@
+import log from 'loglevel';
 import { MessageType, Messenger, type Tag } from '../../messenger.js';
 import { XComSelectors } from './xcom-selectors.js';
 
@@ -42,19 +43,16 @@ export class TagProcessor {
     }
 
     private async processHoverCards(): Promise<void> {
-        // eslint-disable-next-line no-console
-        console.log('Processing hover cards for tags...');
+        log.debug('Processing hover cards for tags...');
         const elements = XComSelectors.getHoverCardElements();
 
         for (const element of elements) {
             // Check if this looks like a profile hover card
             if (this.isProfileHoverCard(element)) {
-                // eslint-disable-next-line no-console
-                console.log('Found profile hover card:', element);
+                log.debug('Found profile hover card:', element);
                 const username =
                     this.extractUsernameFromProfileElement(element);
-                // eslint-disable-next-line no-console
-                console.log('Extracted username from hover card:', username);
+                log.debug('Extracted username from hover card:', username);
                 if (username) {
                     await this.displayTagForProfileCard(element, username);
                 }
@@ -139,8 +137,7 @@ export class TagProcessor {
 
     // Check if an element is a profile hover card
     private isProfileHoverCard(element: Element): boolean {
-        // eslint-disable-next-line no-console
-        console.log('Checking if element is profile hover card:', element);
+        log.debug('Checking if element is profile hover card:', element);
 
         // Look for common patterns in profile hover cards
         const hasUserInfo =
@@ -169,8 +166,7 @@ export class TagProcessor {
             computedStyle.position === 'fixed' ||
             computedStyle.zIndex !== 'auto';
 
-        // eslint-disable-next-line no-console
-        console.log('Hover card check results:', {
+        log.debug('Hover card check results:', {
             hasUserInfo,
             hasAtSymbol,
             hasFollowButton,
@@ -200,8 +196,7 @@ export class TagProcessor {
             // Use the unified tag display logic
             await this.displayTagsForContainer(userNameContainer, username);
         } catch (error) {
-            // eslint-disable-next-line no-console
-            console.error('Error getting tag for username:', username, error);
+            log.error('Error getting tag for username:', username, error);
         }
     }
 
@@ -221,8 +216,7 @@ export class TagProcessor {
                 true
             );
         } catch (error) {
-            // eslint-disable-next-line no-console
-            console.error(
+            log.error(
                 'Error getting tag for profile username:',
                 username,
                 error
@@ -253,8 +247,7 @@ export class TagProcessor {
             // Reuse the unified tag display logic with profile styling
             await this.displayTagsForContainer(commonAncestor, username, true);
         } catch (error) {
-            // eslint-disable-next-line no-console
-            console.error(
+            log.error(
                 'Error getting tag for profile username:',
                 username,
                 error
@@ -264,8 +257,7 @@ export class TagProcessor {
 
     // Find the best container for profile elements
     private findProfileContainer(element: Element): Element | null {
-        // eslint-disable-next-line no-console
-        console.log('Finding profile container for:', element);
+        log.debug('Finding profile container for:', element);
 
         // Look for common profile container patterns
         let current = element;
@@ -351,29 +343,24 @@ export class TagProcessor {
             );
 
             if (container.parentElement) {
-                // eslint-disable-next-line no-console
-                console.log('Inserting tag row after container:', container);
-                // eslint-disable-next-line no-console
-                console.log('Tag row container:', tagRowContainer);
+                log.debug('Inserting tag row after container:', container);
+                log.debug('Tag row container:', tagRowContainer);
                 container.parentElement.insertBefore(
                     tagRowContainer,
                     container.nextSibling
                 );
                 // Mark this container as processed to prevent duplicates
                 this.markAsProcessed(container);
-                // eslint-disable-next-line no-console
-                console.log(
+                log.debug(
                     'Successfully inserted and marked container as processed'
                 );
             } else {
-                // eslint-disable-next-line no-console
-                console.log(
+                log.warn(
                     'Cannot insert tag row - container has no parent element'
                 );
             }
         } catch (error) {
-            // eslint-disable-next-line no-console
-            console.error('Error getting tag for username:', username, error);
+            log.error('Error getting tag for username:', username, error);
         }
     }
 
