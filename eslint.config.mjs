@@ -24,6 +24,12 @@ export const baseOverrides = [
                 },
             ],
             'no-console': 'warn',
+            '@nx/dependency-checks': [
+                'error',
+                {
+                    checkMissingDependencies: false,
+                },
+            ],
         },
     },
 ];
