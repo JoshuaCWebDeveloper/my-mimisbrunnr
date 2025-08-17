@@ -4,6 +4,8 @@ import nx from '@nx/eslint-plugin';
 export default [
     {
         ignores: [
+            '.output/**',
+            '.wxt/**',
             'packages/mimisbrunnr-ext/.output/**',
             'packages/mimisbrunnr-ext/.wxt/**',
         ],
