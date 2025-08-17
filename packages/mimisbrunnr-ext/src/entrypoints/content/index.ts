@@ -1,3 +1,4 @@
+import log from 'loglevel';
 import { defineContentScript } from '#imports';
 import { MessageType, Messenger } from '../../messenger.js';
 import { TagProcessor } from './tag-processor.js';
@@ -6,8 +7,7 @@ import { MutationObserverManager } from './mutation-observer-manager.js';
 export default defineContentScript({
     matches: ['*://*.twitter.com/*', '*://*.x.com/*'],
     async main() {
-        // eslint-disable-next-line no-console
-        console.log('X.com Account Tagger loaded');
+        log.info('X.com Account Tagger loaded');
 
         const messenger = new Messenger();
         const processor = new TagProcessor(messenger);

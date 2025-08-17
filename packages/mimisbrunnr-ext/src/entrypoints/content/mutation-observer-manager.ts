@@ -1,3 +1,4 @@
+import log from 'loglevel';
 import { XComSelectors } from './xcom-selectors.js';
 import type { TagProcessor } from './tag-processor.js';
 
@@ -49,11 +50,9 @@ export class MutationObserverManager {
                 characterDataOldValue: false,
             });
 
-            // eslint-disable-next-line no-console
-            console.log('Mutation observer initialized successfully');
+            log.info('Mutation observer initialized successfully');
         } catch (error) {
-            // eslint-disable-next-line no-console
-            console.error('Failed to initialize mutation observer:', error);
+            log.error('Failed to initialize mutation observer:', error);
         }
     }
 

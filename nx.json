@@ -61,6 +61,11 @@
     }
   ],
   "targetDefaults": {
+    "lint": {
+      "options": {
+        "max-warnings": 0
+      }
+    },
     "test": {
       "dependsOn": ["^build"]
     }

@@ -16,8 +16,8 @@
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "dependencies": {
-    "@my-mimisbrunnr/protocol": "^0.0.1",
     "@my-mimisbrunnr/config": "^0.0.1",
+    "@my-mimisbrunnr/protocol": "^0.0.1",
     "@my-mimisbrunnr/validation": "^0.0.1",
     "tslib": "^2.3.0"
   },
@@ -43,18 +43,6 @@
           "buildTarget": "@my-mimisbrunnr/perpetual-node:build",
           "runBuildTargetDependencies": true
         }
-      },
-      "lint": {
-        "executor": "@nx/eslint:lint",
-        "options": {
-          "lintFilePatterns": [
-            "packages/perpetual-node/**/*.ts"
-          ]
-        }
-      },
-      "test": {
-        "executor": "@nx/vite:test",
-        "options": {}
       }
     }
   }
