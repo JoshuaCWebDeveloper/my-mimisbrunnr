@@ -16,6 +16,9 @@
       "path": "./packages/shared/validation"
     },
     {
+      "path": "./packages/validator-proxy"
+    },
+    {
       "path": "./packages/orbitdb-manager"
     }
   ]
