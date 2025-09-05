@@ -14,20 +14,12 @@ vi.mock('@my-mimisbrunnr/validation', () => ({
 
 import { validateDiscoveryRecord } from '@my-mimisbrunnr/validation';
 
-vi.mock('../config/environment.js', () => ({
-    config: {
-        operational: {
-            storageCleanupInterval: 3600000,
-            maxLogEntriesPinned: 1000,
-        },
-    },
-}));
-
 describe('ReplicationHandler', () => {
     let replicationHandler: ReplicationHandler;
     let mockIpfsClient: Partial<IpfsClient>;
     let mockHealthService: Partial<HealthService>;
     let mockLogger: Logger;
+    let mockConfigService: Partial<import('@nestjs/config').ConfigService>;
 
     beforeEach(() => {
         vi.clearAllMocks();
@@ -44,6 +36,15 @@ describe('ReplicationHandler', () => {
             unregisterService: vi.fn(),
         };
 
+        mockConfigService = {
+            get: vi.fn().mockReturnValue({
+                operational: {
+                    storageCleanupInterval: 3600000,
+                    maxLogEntriesPinned: 1000,
+                },
+            })
+        };
+
         // Mock IPFS client
         mockIpfsClient = {
             pinContent: vi.fn().mockResolvedValue({ success: true }),
@@ -53,7 +54,8 @@ describe('ReplicationHandler', () => {
         replicationHandler = new ReplicationHandler(
             mockIpfsClient as unknown as IpfsClient,
             mockHealthService as unknown as HealthService,
-            mockLogger
+            mockLogger,
+            mockConfigService as unknown as import('@nestjs/config').ConfigService
         );
     });
 

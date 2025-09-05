@@ -11,28 +11,12 @@ vi.mock('@my-mimisbrunnr/validation', () => ({
 
 import { RateLimitTracker } from '@my-mimisbrunnr/validation';
 
-// Mock the config module
-vi.mock('../config/environment.js', () => ({
-    config: {
-        security: {
-            apiRpm: 60,
-            pinAddMaxPerIpPerDay: 2000,
-            pinAddBurst: 30,
-            dagGetBurst: 60,
-            pubsubPubBurst: 60,
-            pubsubSubBurst: 60,
-        },
-        operational: {
-            storageCleanupInterval: 3600000,
-        },
-    },
-}));
-
 describe('BasicRateLimiter', () => {
     let rateLimiter: BasicRateLimiter;
     let mockRateLimitTracker: { checkRateLimit: ReturnType<typeof vi.fn> };
     let mockLogger: Logger;
     let mockHealthService: Partial<HealthService>;
+    let mockConfigService: Partial<import('@nestjs/config').ConfigService>;
 
     beforeEach(() => {
         vi.clearAllMocks();
@@ -49,6 +33,22 @@ describe('BasicRateLimiter', () => {
             unregisterService: vi.fn(),
         };
 
+        mockConfigService = {
+            get: vi.fn().mockReturnValue({
+                security: {
+                    apiRpm: 60,
+                    pinAddMaxPerIpPerDay: 2000,
+                    pinAddBurst: 30,
+                    dagGetBurst: 60,
+                    pubsubPubBurst: 60,
+                    pubsubSubBurst: 60,
+                },
+                operational: {
+                    storageCleanupInterval: 3600000,
+                },
+            })
+        };
+
         // Get the mocked RateLimitTracker
         mockRateLimitTracker = {
             checkRateLimit: vi.fn().mockReturnValue(true),
@@ -59,7 +59,8 @@ describe('BasicRateLimiter', () => {
 
         rateLimiter = new BasicRateLimiter(
             mockHealthService as unknown as HealthService,
-            mockLogger
+            mockLogger,
+            mockConfigService as unknown as import('@nestjs/config').ConfigService
         );
     });
 
@@ -271,10 +272,26 @@ describe('BasicRateLimiter', () => {
                 warn: vi.fn(),
                 debug: vi.fn(),
             } as unknown as Logger;
+            const mockConfigService = {
+                get: vi.fn().mockReturnValue({
+                    security: {
+                        apiRpm: 60,
+                        pinAddMaxPerIpPerDay: 2000,
+                        pinAddBurst: 30,
+                        dagGetBurst: 60,
+                        pubsubPubBurst: 60,
+                        pubsubSubBurst: 60,
+                    },
+                    operational: {
+                        storageCleanupInterval: 3600000,
+                    },
+                })
+            };
 
             const testRateLimiter = new BasicRateLimiter(
                 mockHealthService as unknown as HealthService,
-                mockLogger
+                mockLogger,
+                mockConfigService as unknown as import('@nestjs/config').ConfigService
             );
 
             await testRateLimiter.shutdown();

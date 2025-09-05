@@ -26,6 +26,7 @@ describe('OrbitDBManager', () => {
     let mockReplicationHandler: Partial<ReplicationHandler>;
     let mockHealthService: Partial<HealthService>;
     let mockLogger: Logger;
+    let mockConfigService: Partial<import('@nestjs/config').ConfigService>;
     let mockOrbitDB: OrbitDBInstance;
     let mockDiscoveryLog: OrbitDBDatabase;
 
@@ -46,6 +47,7 @@ describe('OrbitDBManager', () => {
                 lastCheck: Date.now(),
             }),
             getRawClient: vi.fn().mockReturnValue({ id: 'mock-ipfs-client' }),
+            awaitConnection: vi.fn().mockResolvedValue(undefined),
         };
 
         // Mock replication handler
@@ -59,9 +61,20 @@ describe('OrbitDBManager', () => {
             unregisterService: vi.fn(),
         };
 
+        // Mock ConfigService
+        mockConfigService = {
+            get: vi.fn().mockReturnValue({
+                orbitdb: {
+                    logName: 'test-discovery-log',
+                    dataDir: '/tmp/test-orbitdb',
+                },
+            })
+        };
+
         // Mock OrbitDB database - use partial to allow mock functions
         mockDiscoveryLog = {
             add: vi.fn().mockResolvedValue('mock-hash'),
+            addOperation: vi.fn().mockResolvedValue('mock-hash'),
             events: {
                 on: vi.fn(),
                 off: vi.fn(),
@@ -82,7 +95,8 @@ describe('OrbitDBManager', () => {
             mockIpfsClient as unknown as IpfsClient,
             mockReplicationHandler as unknown as ReplicationHandler,
             mockHealthService as unknown as HealthService,
-            mockLogger
+            mockLogger,
+            mockConfigService as unknown as import('@nestjs/config').ConfigService
         );
     });
 
@@ -100,17 +114,25 @@ describe('OrbitDBManager', () => {
     });
 
     describe('initialization', () => {
-        it('should require IPFS client to be connected before initializing', async () => {
-            // Mock IPFS client as disconnected
-            (
-                mockIpfsClient.getConnectionStatus as unknown as ReturnType<
-                    typeof vi.fn
-                >
-            ).mockReturnValue({ connected: false });
+        it('should wait for IPFS client connection during initialization', async () => {
+            // Mock IPFS client to eventually connect
+            let connectAttempts = 0;
+            (mockIpfsClient.awaitConnection as unknown as ReturnType<typeof vi.fn>)
+                .mockImplementation(async () => {
+                    connectAttempts++;
+                    if (connectAttempts < 2) {
+                        // First call simulates waiting
+                        await new Promise(resolve => setTimeout(resolve, 10));
+                    }
+                    // Eventually resolves (simulates successful connection)
+                });
 
-            await expect(orbitdbManager.initialize()).rejects.toThrow(
-                'IPFS client must be connected before initializing OrbitDB'
-            );
+            vi.mocked(createOrbitDB).mockResolvedValue(mockOrbitDB);
+
+            await orbitdbManager.initialize();
+
+            expect(mockIpfsClient.awaitConnection).toHaveBeenCalled();
+            expect(createOrbitDB).toHaveBeenCalled();
         });
 
         it('should require IPFS raw client to be available', async () => {
@@ -189,7 +211,7 @@ describe('OrbitDBManager', () => {
             const result = await orbitdbManager.addDiscoveryRecord(mockRecord);
 
             expect(validateDiscoveryRecord).toHaveBeenCalledWith(mockRecord);
-            expect(mockDiscoveryLog.add).toHaveBeenCalledWith(mockRecord);
+            expect(mockDiscoveryLog.addOperation).toHaveBeenCalledWith(mockRecord);
             expect(result).toBe('mock-hash');
         });
 
@@ -399,7 +421,7 @@ describe('OrbitDBManager', () => {
             await orbitdbManager.openDiscoveryLog();
 
             const error = new Error('Add failed');
-            vi.mocked(mockDiscoveryLog.add).mockRejectedValue(error);
+            vi.mocked(mockDiscoveryLog.addOperation).mockRejectedValue(error);
 
             const record = {
                 did: 'did:test:123',
