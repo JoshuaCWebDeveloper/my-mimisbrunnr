@@ -16,7 +16,7 @@
       "path": "./packages/shared/validation"
     },
     {
-      "path": "./packages/perpetual-node"
+      "path": "./packages/orbitdb-manager"
     }
   ]
 }

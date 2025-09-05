@@ -1,5 +1,5 @@
 {
-  "name": "@my-mimisbrunnr/perpetual-node",
+  "name": "@my-mimisbrunnr/orbitdb-manager",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -32,15 +32,15 @@
           "^build"
         ],
         "options": {
-          "outputPath": "packages/perpetual-node/dist",
-          "main": "packages/perpetual-node/src/index.ts",
-          "tsConfig": "packages/perpetual-node/tsconfig.lib.json"
+          "outputPath": "packages/orbitdb-manager/dist",
+          "main": "packages/orbitdb-manager/src/index.ts",
+          "tsConfig": "packages/orbitdb-manager/tsconfig.lib.json"
         }
       },
       "dev": {
         "executor": "@nx/js:node",
         "options": {
-          "buildTarget": "@my-mimisbrunnr/perpetual-node:build",
+          "buildTarget": "@my-mimisbrunnr/orbitdb-manager:build",
           "runBuildTargetDependencies": true
         }
       }
