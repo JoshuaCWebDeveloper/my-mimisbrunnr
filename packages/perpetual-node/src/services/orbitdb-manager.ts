@@ -1,29 +1,19 @@
 // OrbitDB Manager service for discovery log management and replication
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { createOrbitDB } from '@orbitdb/core';
 import { DiscoveryRecord } from '@my-mimisbrunnr/protocol';
 // PROTOCOL constants are used via config.orbitdb.logName
 import { validateDiscoveryRecord } from '@my-mimisbrunnr/validation';
-import { config } from '../config/environment.js';
-import { Logger } from '../logger.js';
+import { Logger } from '../logger/logger.js';
 import {
     HealthService,
     HealthProvider,
     HealthStatus,
 } from '../health/health.service.js';
-import type { IpfsClient, IpfsHttpClient } from './ipfs-client.js';
-import type { ReplicationHandler } from './replication-handler.js';
-import type { OrbitDBInstance, OrbitDBDatabase } from '@orbitdb/core';
-
-// OrbitDB-related types
-export interface OrbitDB {
-    log: <T = unknown>(
-        name: string,
-        options?: Record<string, unknown>
-    ) => Promise<LogStore<T>>;
-    disconnect: () => Promise<void>;
-    id: string;
-}
+import { IpfsClient, IpfsHttpClient } from './ipfs-client.js';
+import { ReplicationHandler } from './replication-handler.js';
+import { OrbitDB, BaseDatabase } from '@orbitdb/core';
 
 export interface LogStore<T = unknown> {
     add: (data: T) => Promise<string>;
@@ -103,12 +93,14 @@ export interface OrbitDBManagerOptions {
     id?: string;
 }
 
+type OrbitDbIpfsArg = Parameters<typeof createOrbitDB>[0]['ipfs'];
+
 @Injectable()
 export class OrbitDBManager
     implements OnModuleInit, OnModuleDestroy, HealthProvider
 {
-    private orbitdb?: OrbitDBInstance; // OrbitDB v3 instance
-    private discoveryLog?: OrbitDBDatabase; // OrbitDB v3 database
+    private orbitdb?: OrbitDB; // OrbitDB v3 instance
+    private discoveryLog?: BaseDatabase; // OrbitDB v3 database
     private replicationHandlerInstance?: ReplicationHandler;
     private connectionStatus: OrbitDBConnectionStatus = {
         connected: false,
@@ -122,7 +114,8 @@ export class OrbitDBManager
         private readonly ipfsClient: IpfsClient,
         private readonly replicationHandler: ReplicationHandler,
         private readonly healthService: HealthService,
-        private readonly logger: Logger
+        private readonly logger: Logger,
+        private readonly configService: ConfigService
     ) {
         this.logger.info('OrbitDB Manager created');
     }
@@ -159,12 +152,7 @@ export class OrbitDBManager
      */
     async initialize(): Promise<void> {
         try {
-            // Ensure IPFS client is connected
-            if (!this.ipfsClient.getConnectionStatus().connected) {
-                throw new Error(
-                    'IPFS client must be connected before initializing OrbitDB'
-                );
-            }
+            await this.ipfsClient.awaitConnection();
 
             // Create OrbitDB v3 instance
             const ipfs = this.ipfsClient.getRawClient();
@@ -172,7 +160,9 @@ export class OrbitDBManager
                 throw new Error('IPFS client not initialized');
             }
 
-            this.orbitdb = await createOrbitDB({ ipfs });
+            this.orbitdb = await createOrbitDB({
+                ipfs: ipfs as unknown as OrbitDbIpfsArg,
+            });
 
             this.connectionStatus = {
                 connected: true,
@@ -181,9 +171,11 @@ export class OrbitDBManager
                 lastUpdate: Date.now(),
             };
 
+            const appConfig = this.configService.get('app');
+
             this.logger.info(`✅ OrbitDB instance created`, {
                 id: this.orbitdb?.id,
-                directory: config.orbitdb.dataDir,
+                directory: appConfig.orbitdb.dataDir,
             });
         } catch (error) {
             this.logger.error('Failed to initialize OrbitDB', {
@@ -202,23 +194,27 @@ export class OrbitDBManager
         }
 
         try {
+            const appConfig = this.configService.get('app');
+
             this.logger.info(
-                `Opening discovery log: ${config.orbitdb.logName}`
+                `Opening discovery log: ${appConfig.orbitdb.logName}`
             );
 
             // Open the discovery log with the shared name from config (OrbitDB v3 API)
-            this.discoveryLog = await this.orbitdb.open(config.orbitdb.logName);
+            this.discoveryLog = await this.orbitdb.open(
+                appConfig.orbitdb.logName
+            );
 
             // Set up event listeners for replication
             this.setupEventListeners();
 
             // Get entry count (OrbitDB v3 uses all() method)
-            const entries = await this.discoveryLog.all();
+            const entries = (await this.discoveryLog.all()) as unknown[];
             const entryCount = entries.length;
             this.logger.info(`✅ Discovery log opened`, {
                 address: this.discoveryLog.address,
                 entries: entryCount,
-                logName: config.orbitdb.logName,
+                logName: appConfig.orbitdb.logName,
             });
         } catch (error) {
             this.logger.error('Failed to open discovery log', {
@@ -254,7 +250,7 @@ export class OrbitDBManager
             });
 
             // Find the entry by hash (OrbitDB v3 API)
-            const entries = await this.discoveryLog.all();
+            const entries = (await this.discoveryLog.all()) as unknown[];
             const entry = entries.find(
                 (e: unknown) => (e as { hash?: string }).hash === hash
             );
@@ -296,7 +292,7 @@ export class OrbitDBManager
                 throw new Error('Invalid discovery record');
             }
 
-            const hash = await this.discoveryLog.add(record);
+            const hash = await this.discoveryLog.addOperation(record);
 
             this.logger.info(`➕ Discovery record added`, {
                 hash,
@@ -323,7 +319,7 @@ export class OrbitDBManager
         }
 
         try {
-            const entries = await this.discoveryLog.all();
+            const entries = (await this.discoveryLog.all()) as unknown[];
             const lastEntry =
                 entries.length > 0 ? entries[entries.length - 1] : undefined;
 
@@ -346,7 +342,7 @@ export class OrbitDBManager
     /**
      * Get the discovery log instance
      */
-    getDiscoveryLog(): OrbitDBDatabase | null {
+    getDiscoveryLog(): BaseDatabase | null {
         return this.discoveryLog || null;
     }
 

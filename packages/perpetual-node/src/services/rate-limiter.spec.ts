@@ -1,7 +1,7 @@
 // Unit tests for BasicRateLimiter
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { BasicRateLimiter } from './rate-limiter.js';
-import type { Logger } from '../logger.js';
+import type { Logger } from '../logger/logger.js';
 import type { HealthService } from '../health/health.service.js';
 
 // Mock the validation module to avoid module boundary issues
@@ -36,26 +36,31 @@ describe('BasicRateLimiter', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
-        
+
         mockLogger = {
             info: vi.fn(),
             error: vi.fn(),
             warn: vi.fn(),
             debug: vi.fn(),
         } as unknown as Logger;
-        
+
         mockHealthService = {
             registerService: vi.fn(),
             unregisterService: vi.fn(),
         };
-        
+
         // Get the mocked RateLimitTracker
         mockRateLimitTracker = {
             checkRateLimit: vi.fn().mockReturnValue(true),
         };
-        vi.mocked(RateLimitTracker).mockReturnValue(mockRateLimitTracker as unknown as RateLimitTracker);
-        
-        rateLimiter = new BasicRateLimiter(mockHealthService as unknown as HealthService, mockLogger);
+        vi.mocked(RateLimitTracker).mockReturnValue(
+            mockRateLimitTracker as unknown as RateLimitTracker
+        );
+
+        rateLimiter = new BasicRateLimiter(
+            mockHealthService as unknown as HealthService,
+            mockLogger
+        );
     });
 
     afterEach(async () => {
@@ -199,8 +204,12 @@ describe('BasicRateLimiter', () => {
         it('should reject pubsub requests exceeding limits', async () => {
             mockRateLimitTracker.checkRateLimit.mockReturnValue(false);
 
-            const pubResult = await rateLimiter.checkPubsubPubLimit('127.0.0.1');
-            const subResult = await rateLimiter.checkPubsubSubLimit('127.0.0.1');
+            const pubResult = await rateLimiter.checkPubsubPubLimit(
+                '127.0.0.1'
+            );
+            const subResult = await rateLimiter.checkPubsubSubLimit(
+                '127.0.0.1'
+            );
 
             expect(pubResult.allowed).toBe(false);
             expect(pubResult.reason).toBe('burst_limit_exceeded');
@@ -236,7 +245,7 @@ describe('BasicRateLimiter', () => {
         it('should clean up old request data', async () => {
             // Add some tracking data first
             await rateLimiter.trackPinAddRequest('127.0.0.1');
-            
+
             // Call cleanup (usually called by interval)
             await rateLimiter.cleanupOldRequests();
 
@@ -262,9 +271,12 @@ describe('BasicRateLimiter', () => {
                 warn: vi.fn(),
                 debug: vi.fn(),
             } as unknown as Logger;
-            
-            const testRateLimiter = new BasicRateLimiter(mockHealthService as unknown as HealthService, mockLogger);
-            
+
+            const testRateLimiter = new BasicRateLimiter(
+                mockHealthService as unknown as HealthService,
+                mockLogger
+            );
+
             await testRateLimiter.shutdown();
 
             // Should not throw errors

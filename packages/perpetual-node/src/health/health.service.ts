@@ -1,6 +1,6 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
-import { config } from '../config/environment.js';
-import { Logger } from '../logger.js';
+import { ConfigService } from '@nestjs/config';
+import { Logger } from '../logger/logger.js';
 
 export interface HealthStatus {
     status: 'healthy' | 'unhealthy' | 'degraded';
@@ -24,7 +24,10 @@ export class HealthService implements OnModuleDestroy {
     private healthCheckInterval?: NodeJS.Timeout;
     private services = new Map<string, HealthProvider>();
 
-    constructor(private readonly logger: Logger) {
+    constructor(
+        private readonly logger: Logger,
+        private readonly configService: ConfigService
+    ) {
         this.startTime = Date.now();
         this.startHealthCheckInterval();
     }
@@ -51,28 +54,37 @@ export class HealthService implements OnModuleDestroy {
     async getOverallHealth(): Promise<HealthStatus> {
         try {
             const serviceStatuses = await Promise.all(
-                Array.from(this.services.entries()).map(async ([name, provider]) => {
-                    try {
-                        const status = await provider.getHealthStatus();
-                        return { name, status };
-                    } catch (error) {
-                        return {
-                            name,
-                            status: {
-                                status: 'unhealthy' as const,
-                                timestamp: Date.now(),
-                                uptime: Date.now() - this.startTime,
-                                details: {
-                                    error: error instanceof Error ? error.message : error,
+                Array.from(this.services.entries()).map(
+                    async ([name, provider]) => {
+                        try {
+                            const status = await provider.getHealthStatus();
+                            return { name, status };
+                        } catch (error) {
+                            return {
+                                name,
+                                status: {
+                                    status: 'unhealthy' as const,
+                                    timestamp: Date.now(),
+                                    uptime: Date.now() - this.startTime,
+                                    details: {
+                                        error:
+                                            error instanceof Error
+                                                ? error.message
+                                                : error,
+                                    },
                                 },
-                            },
-                        };
+                            };
+                        }
                     }
-                })
+                )
             );
 
-            const unhealthyServices = serviceStatuses.filter(s => s.status.status === 'unhealthy');
-            const degradedServices = serviceStatuses.filter(s => s.status.status === 'degraded');
+            const unhealthyServices = serviceStatuses.filter(
+                s => s.status.status === 'unhealthy'
+            );
+            const degradedServices = serviceStatuses.filter(
+                s => s.status.status === 'degraded'
+            );
 
             let status: 'healthy' | 'unhealthy' | 'degraded' = 'healthy';
 
@@ -82,10 +94,13 @@ export class HealthService implements OnModuleDestroy {
                 status = 'degraded';
             }
 
-            const servicesMap = serviceStatuses.reduce((acc, { name, status }) => {
-                acc[name] = status.status;
-                return acc;
-            }, {} as Record<string, string>);
+            const servicesMap = serviceStatuses.reduce(
+                (acc, { name, status }) => {
+                    acc[name] = status.status;
+                    return acc;
+                },
+                {} as Record<string, string>
+            );
 
             return {
                 status,
@@ -187,9 +202,9 @@ export class HealthService implements OnModuleDestroy {
             },
             memory: process.memoryUsage(),
             config: {
-                port: config.service.port,
-                logLevel: config.service.logLevel,
-                orbitdbLogName: config.orbitdb.logName,
+                port: this.configService.get('app').service.port,
+                logLevel: this.configService.get('app').service.logLevel,
+                orbitdbLogName: this.configService.get('app').orbitdb.logName,
             },
         };
     }
@@ -243,14 +258,11 @@ export class HealthService implements OnModuleDestroy {
                     });
                 }
             } catch (error) {
-                this.logger.error(
-                    'Error during periodic health check',
-                    {
-                        error: error instanceof Error ? error.message : error,
-                    }
-                );
+                this.logger.error('Error during periodic health check', {
+                    error: error instanceof Error ? error.message : error,
+                });
             }
-        }, config.service.healthCheckInterval);
+        }, this.configService.get('app').service.healthCheckInterval);
     }
 
     /**

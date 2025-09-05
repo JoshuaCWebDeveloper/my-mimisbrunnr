@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ReplicationHandler } from './replication-handler.js';
 import type { LogEntry } from './orbitdb-manager.js';
 import type { DiscoveryRecord } from '@my-mimisbrunnr/protocol';
-import type { Logger } from '../logger.js';
+import type { Logger } from '../logger/logger.js';
 import type { HealthService } from '../health/health.service.js';
 import type { IpfsClient } from './ipfs-client.js';
 
@@ -31,26 +31,30 @@ describe('ReplicationHandler', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
-        
+
         mockLogger = {
             info: vi.fn(),
             error: vi.fn(),
             warn: vi.fn(),
             debug: vi.fn(),
         } as unknown as Logger;
-        
+
         mockHealthService = {
             registerService: vi.fn(),
             unregisterService: vi.fn(),
         };
-        
+
         // Mock IPFS client
         mockIpfsClient = {
             pinContent: vi.fn().mockResolvedValue({ success: true }),
             unpinContent: vi.fn().mockResolvedValue(true),
         };
 
-        replicationHandler = new ReplicationHandler(mockIpfsClient as unknown as IpfsClient, mockHealthService as unknown as HealthService, mockLogger);
+        replicationHandler = new ReplicationHandler(
+            mockIpfsClient as unknown as IpfsClient,
+            mockHealthService as unknown as HealthService,
+            mockLogger
+        );
     });
 
     afterEach(async () => {
@@ -64,7 +68,9 @@ describe('ReplicationHandler', () => {
     });
 
     // Helper function to create mock entries
-    const createMockEntry = (overrides: Partial<DiscoveryRecord> = {}): LogEntry<DiscoveryRecord> => ({
+    const createMockEntry = (
+        overrides: Partial<DiscoveryRecord> = {}
+    ): LogEntry<DiscoveryRecord> => ({
         hash: 'test-hash-123',
         payload: {
             value: {
@@ -158,7 +164,7 @@ describe('ReplicationHandler', () => {
 
         it('should handle entries with very old timestamps', async () => {
             const oldEntry = createMockEntry({
-                createdAt: Date.now() - (400 * 24 * 60 * 60 * 1000), // 400 days ago
+                createdAt: Date.now() - 400 * 24 * 60 * 60 * 1000, // 400 days ago
             });
 
             await replicationHandler.handleNewEntry(oldEntry);
@@ -168,7 +174,9 @@ describe('ReplicationHandler', () => {
         });
 
         it('should handle pinning failures gracefully', async () => {
-            const mockPinContent = mockIpfsClient.pinContent as ReturnType<typeof vi.fn>;
+            const mockPinContent = mockIpfsClient.pinContent as ReturnType<
+                typeof vi.fn
+            >;
             mockPinContent.mockRejectedValueOnce(new Error('Pin failed'));
 
             const validEntry = createMockEntry();
@@ -199,7 +207,7 @@ describe('ReplicationHandler', () => {
         it('should return accurate statistics', async () => {
             const entry1 = createMockEntry({ handle: '@user1' });
             const entry2 = createMockEntry({ handle: '@user2' });
-            
+
             // Mock validation to accept first entry, reject second entry
             vi.mocked(validateDiscoveryRecord)
                 .mockReturnValueOnce(true)
@@ -234,7 +242,9 @@ describe('ReplicationHandler', () => {
         it('should clean up old entries when limit is exceeded', async () => {
             // This is a complex test that would require mocking internal cleanup logic
             // For now, just test that the cleanup method doesn't crash
-            await expect(replicationHandler.cleanupOldEntries()).resolves.not.toThrow();
+            await expect(
+                replicationHandler.cleanupOldEntries()
+            ).resolves.not.toThrow();
         });
 
         it('should not clean up when under the limit', async () => {
@@ -249,12 +259,16 @@ describe('ReplicationHandler', () => {
         });
 
         it('should handle cleanup errors gracefully', async () => {
-            const mockUnpinContent = mockIpfsClient.unpinContent as ReturnType<typeof vi.fn>;
+            const mockUnpinContent = mockIpfsClient.unpinContent as ReturnType<
+                typeof vi.fn
+            >;
             mockUnpinContent.mockRejectedValue(new Error('Unpin failed'));
 
             // This would normally trigger cleanup but we can't easily test the interval
             // So we test the error handling path directly
-            await expect(replicationHandler.cleanupOldEntries()).resolves.not.toThrow();
+            await expect(
+                replicationHandler.cleanupOldEntries()
+            ).resolves.not.toThrow();
         });
     });
 

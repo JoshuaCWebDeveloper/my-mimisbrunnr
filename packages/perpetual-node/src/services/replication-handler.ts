@@ -1,11 +1,15 @@
 // Simple replication handler for OrbitDB entries with basic validation and pinning
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { DiscoveryRecord } from '@my-mimisbrunnr/protocol';
 import { validateDiscoveryRecord } from '@my-mimisbrunnr/validation';
-import { config } from '../config/environment.js';
-import { Logger } from '../logger.js';
-import { HealthService, HealthProvider, HealthStatus } from '../health/health.service.js';
-import type { IpfsClient } from './ipfs-client.js';
+import { Logger } from '../logger/logger.js';
+import {
+    HealthService,
+    HealthProvider,
+    HealthStatus,
+} from '../health/health.service.js';
+import { IpfsClient } from './ipfs-client.js';
 import type { LogEntry } from './orbitdb-manager.js';
 
 interface PinnedEntry {
@@ -27,7 +31,8 @@ export class ReplicationHandler implements OnModuleDestroy, HealthProvider {
     constructor(
         private readonly ipfsClient: IpfsClient,
         private readonly healthService: HealthService,
-        private readonly logger: Logger
+        private readonly logger: Logger,
+        private readonly configService: ConfigService
     ) {
         this.startCleanupInterval();
         // Register with health service
@@ -124,19 +129,13 @@ export class ReplicationHandler implements OnModuleDestroy, HealthProvider {
                 throw new Error(pinResult.error || 'Pin operation failed');
             }
 
-            this.logger.debug(
-                `📌 Entry content pinned: ${entryCid}`,
-                {
-                    size: pinResult.size,
-                }
-            );
+            this.logger.debug(`📌 Entry content pinned: ${entryCid}`, {
+                size: pinResult.size,
+            });
         } catch (error) {
-            this.logger.error(
-                `❌ Failed to pin entry content: ${entryCid}`,
-                {
-                    error: error instanceof Error ? error.message : error,
-                }
-            );
+            this.logger.error(`❌ Failed to pin entry content: ${entryCid}`, {
+                error: error instanceof Error ? error.message : error,
+            });
             throw error;
         }
     }
@@ -150,12 +149,9 @@ export class ReplicationHandler implements OnModuleDestroy, HealthProvider {
             const isValid = validateDiscoveryRecord(entry);
 
             if (!isValid) {
-                this.logger.debug(
-                    'Entry failed shared validation',
-                    {
-                        entry,
-                    }
-                );
+                this.logger.debug('Entry failed shared validation', {
+                    entry,
+                });
                 return false;
             }
 
@@ -187,12 +183,9 @@ export class ReplicationHandler implements OnModuleDestroy, HealthProvider {
 
             if (entry.createdAt > now + 60000) {
                 // Allow 1 minute clock skew
-                this.logger.debug(
-                    'Entry createdAt is in the future',
-                    {
-                        entry,
-                    }
-                );
+                this.logger.debug('Entry createdAt is in the future', {
+                    entry,
+                });
                 return false;
             }
 
@@ -252,9 +245,11 @@ export class ReplicationHandler implements OnModuleDestroy, HealthProvider {
      * Start cleanup interval for old entries
      */
     private startCleanupInterval(): void {
+        const appConfig = this.configService.get('app');
+
         this.cleanupInterval = setInterval(() => {
             this.cleanupOldEntries();
-        }, config.operational.storageCleanupInterval);
+        }, appConfig.operational.storageCleanupInterval);
     }
 
     /**
@@ -262,6 +257,7 @@ export class ReplicationHandler implements OnModuleDestroy, HealthProvider {
      */
     async cleanupOldEntries(): Promise<void> {
         try {
+            const appConfig = this.configService.get('app');
             const now = Date.now();
             const cutoff = now - 30 * 24 * 60 * 60 * 1000; // 30 days ago
             let cleaned = 0;
@@ -269,7 +265,7 @@ export class ReplicationHandler implements OnModuleDestroy, HealthProvider {
             // Only clean up if we exceed the maximum pinned entries limit
             if (
                 this.pinnedEntries.size <=
-                config.operational.maxLogEntriesPinned
+                appConfig.operational.maxLogEntriesPinned
             ) {
                 return;
             }
@@ -282,21 +278,18 @@ export class ReplicationHandler implements OnModuleDestroy, HealthProvider {
             // Calculate how many to remove
             const excessEntries =
                 this.pinnedEntries.size -
-                config.operational.maxLogEntriesPinned;
+                appConfig.operational.maxLogEntriesPinned;
             const toRemove = Math.min(oldEntries.length, excessEntries);
 
             if (toRemove <= 0) {
                 return;
             }
 
-            this.logger.info(
-                `🧹 Starting cleanup of old entries`,
-                {
-                    totalPinned: this.pinnedEntries.size,
-                    maxAllowed: config.operational.maxLogEntriesPinned,
-                    toRemove,
-                }
-            );
+            this.logger.info(`🧹 Starting cleanup of old entries`, {
+                totalPinned: this.pinnedEntries.size,
+                maxAllowed: appConfig.operational.maxLogEntriesPinned,
+                toRemove,
+            });
 
             // Remove old entries
             for (let i = 0; i < toRemove; i++) {
@@ -312,23 +305,16 @@ export class ReplicationHandler implements OnModuleDestroy, HealthProvider {
                     this.pinnedEntries.delete(hash);
                     cleaned++;
                 } catch (error) {
-                    this.logger.warn(
-                        `Failed to cleanup entry: ${hash}`,
-                        {
-                            error:
-                                error instanceof Error ? error.message : error,
-                        }
-                    );
+                    this.logger.warn(`Failed to cleanup entry: ${hash}`, {
+                        error: error instanceof Error ? error.message : error,
+                    });
                 }
             }
 
             if (cleaned > 0) {
-                this.logger.info(
-                    `🧹 Cleaned up ${cleaned} old entries`,
-                    {
-                        remaining: this.pinnedEntries.size,
-                    }
-                );
+                this.logger.info(`🧹 Cleaned up ${cleaned} old entries`, {
+                    remaining: this.pinnedEntries.size,
+                });
             }
         } catch (error) {
             this.logger.error('Error during cleanup', {
@@ -357,14 +343,15 @@ export class ReplicationHandler implements OnModuleDestroy, HealthProvider {
     async getHealthStatus(): Promise<HealthStatus> {
         try {
             const stats = this.getReplicationStats();
-            
+
             // Consider the service degraded if rejection rate is high
-            const rejectionRate = stats.totalProcessed > 0 
-                ? stats.totalRejected / stats.totalProcessed 
-                : 0;
+            const rejectionRate =
+                stats.totalProcessed > 0
+                    ? stats.totalRejected / stats.totalProcessed
+                    : 0;
 
             let status: 'healthy' | 'unhealthy' | 'degraded' = 'healthy';
-            
+
             if (rejectionRate > 0.8) {
                 status = 'unhealthy';
             } else if (rejectionRate > 0.5) {

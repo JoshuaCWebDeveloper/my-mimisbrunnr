@@ -1,7 +1,7 @@
 // Unit tests for IpfsClient
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { IpfsClient } from './ipfs-client.js';
-import type { Logger } from '../logger.js';
+import type { Logger } from '../logger/logger.js';
 import type { HealthService } from '../health/health.service.js';
 import { create } from 'kubo-rpc-client';
 
@@ -53,7 +53,10 @@ describe('IpfsClient', () => {
             registerService: vi.fn(),
             unregisterService: vi.fn(),
         };
-        ipfsClient = new IpfsClient(mockLogger, mockHealthService as unknown as HealthService);
+        ipfsClient = new IpfsClient(
+            mockLogger,
+            mockHealthService as unknown as HealthService
+        );
     });
 
     afterEach(async () => {
@@ -74,13 +77,18 @@ describe('IpfsClient', () => {
             // Mock IPFS client to fail by creating a new instance that will use the failing mock
             vi.mocked(create).mockReturnValueOnce({
                 id: vi.fn().mockRejectedValue(new Error('Connection failed')),
-                version: vi.fn().mockRejectedValue(new Error('Connection failed')),
+                version: vi
+                    .fn()
+                    .mockRejectedValue(new Error('Connection failed')),
                 pin: { add: vi.fn() },
                 dag: { get: vi.fn() },
                 block: { get: vi.fn() },
             } as unknown as ReturnType<typeof create>);
 
-            const failingClient = new IpfsClient(mockLogger, { registerService: vi.fn(), unregisterService: vi.fn() } as unknown as HealthService);
+            const failingClient = new IpfsClient(mockLogger, {
+                registerService: vi.fn(),
+                unregisterService: vi.fn(),
+            } as unknown as HealthService);
 
             await expect(failingClient.initialize()).rejects.toThrow(
                 'Failed to establish IPFS connection'
@@ -105,9 +113,9 @@ describe('IpfsClient', () => {
         it('should handle connection check failures', async () => {
             // Mock client methods to fail
             const rawClient = ipfsClient.getRawClient() as unknown;
-            vi.mocked((rawClient as { id: () => void }).id).mockRejectedValueOnce(
-                new Error('Network error')
-            );
+            vi.mocked(
+                (rawClient as { id: () => void }).id
+            ).mockRejectedValueOnce(new Error('Network error'));
 
             const result = await ipfsClient.checkConnection();
             const status = ipfsClient.getConnectionStatus();
@@ -140,9 +148,9 @@ describe('IpfsClient', () => {
 
         it('should handle invalid CID format', async () => {
             const rawClient = ipfsClient.getRawClient() as unknown;
-            vi.mocked((rawClient as { pin: { add: () => void } }).pin.add).mockRejectedValueOnce(
-                new Error('Invalid CID format')
-            );
+            vi.mocked(
+                (rawClient as { pin: { add: () => void } }).pin.add
+            ).mockRejectedValueOnce(new Error('Invalid CID format'));
 
             const request = {
                 cid: 'invalid',
@@ -159,9 +167,9 @@ describe('IpfsClient', () => {
 
         it('should handle pinning failures', async () => {
             const rawClient = ipfsClient.getRawClient() as unknown;
-            vi.mocked((rawClient as { pin: { add: () => void } }).pin.add).mockRejectedValueOnce(
-                new Error('Pin failed')
-            );
+            vi.mocked(
+                (rawClient as { pin: { add: () => void } }).pin.add
+            ).mockRejectedValueOnce(new Error('Pin failed'));
 
             const request = {
                 cid: 'QmTestCID123',
@@ -178,7 +186,9 @@ describe('IpfsClient', () => {
 
         it('should use the recursive setting from the request', async () => {
             const rawClient = ipfsClient.getRawClient() as unknown;
-            const mockPinAdd = vi.mocked((rawClient as { pin: { add: () => void } }).pin.add);
+            const mockPinAdd = vi.mocked(
+                (rawClient as { pin: { add: () => void } }).pin.add
+            );
 
             const request = {
                 cid: 'QmTestCID123',
@@ -209,9 +219,9 @@ describe('IpfsClient', () => {
 
         it('should handle unpinning failures gracefully', async () => {
             const rawClient = ipfsClient.getRawClient() as unknown;
-            vi.mocked((rawClient as { pin: { rm: () => void } }).pin.rm).mockRejectedValueOnce(
-                new Error('Unpin failed')
-            );
+            vi.mocked(
+                (rawClient as { pin: { rm: () => void } }).pin.rm
+            ).mockRejectedValueOnce(new Error('Unpin failed'));
 
             const result = await ipfsClient.unpinContent('QmTestCID123');
 
@@ -232,9 +242,9 @@ describe('IpfsClient', () => {
 
         it('should handle DAG retrieval failures', async () => {
             const rawClient = ipfsClient.getRawClient() as unknown;
-            vi.mocked((rawClient as { dag: { get: () => void } }).dag.get).mockRejectedValueOnce(
-                new Error('DAG not found')
-            );
+            vi.mocked(
+                (rawClient as { dag: { get: () => void } }).dag.get
+            ).mockRejectedValueOnce(new Error('DAG not found'));
 
             await expect(
                 ipfsClient.getDagContent('QmInvalidCID')
@@ -284,9 +294,9 @@ describe('IpfsClient', () => {
 
         it('should handle repository stats failures', async () => {
             const rawClient = ipfsClient.getRawClient() as unknown;
-            vi.mocked((rawClient as { repo: { stat: () => void } }).repo.stat).mockRejectedValueOnce(
-                new Error('Stats unavailable')
-            );
+            vi.mocked(
+                (rawClient as { repo: { stat: () => void } }).repo.stat
+            ).mockRejectedValueOnce(new Error('Stats unavailable'));
 
             await expect(ipfsClient.getRepositoryStats()).rejects.toThrow(
                 'Stats unavailable'
@@ -303,8 +313,12 @@ describe('IpfsClient', () => {
             const rawClient = ipfsClient.getRawClient();
 
             expect(rawClient).toBeDefined();
-            expect((rawClient as unknown as { id: unknown; pin: unknown }).id).toBeDefined();
-            expect((rawClient as unknown as { id: unknown; pin: unknown }).pin).toBeDefined();
+            expect(
+                (rawClient as unknown as { id: unknown; pin: unknown }).id
+            ).toBeDefined();
+            expect(
+                (rawClient as unknown as { id: unknown; pin: unknown }).pin
+            ).toBeDefined();
         });
     });
 

@@ -4,13 +4,11 @@ import { OrbitDBManager } from './services/orbitdb-manager.js';
 import { ReplicationHandler } from './services/replication-handler.js';
 import { BasicRateLimiter } from './services/rate-limiter.js';
 import { HealthModule } from './health/health.module.js';
-import { LoggerModule } from './logger.js';
+import { LoggerModule } from './logger/logger.module.js';
+import { ConfigModule } from './config/config.module.js';
 
 @Module({
-    imports: [
-        LoggerModule,
-        HealthModule,
-    ],
+    imports: [ConfigModule, LoggerModule, HealthModule],
     providers: [
         IpfsClient,
         OrbitDBManager,

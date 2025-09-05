@@ -1,9 +1,15 @@
 // IPFS Kubo RPC client wrapper with connection management and error handling
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { create, type KuboRPCClient, CID } from 'kubo-rpc-client';
-import { config } from '../config/environment.js';
-import { Logger } from '../logger.js';
-import { HealthService, HealthProvider, HealthStatus } from '../health/health.service.js';
+import { Logger } from '../logger/logger.js';
+import {
+    HealthService,
+    HealthProvider,
+    HealthStatus,
+} from '../health/health.service.js';
+
+const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 // IPFS-related types
 interface IpfsAddResult {
@@ -31,19 +37,36 @@ interface IpfsRepoStatResult {
 }
 
 export interface IpfsHttpClient {
-    add: (data: string | Uint8Array | Buffer, options?: Record<string, unknown>) => Promise<IpfsAddResult>;
+    add: (
+        data: string | Uint8Array | Buffer,
+        options?: Record<string, unknown>
+    ) => Promise<IpfsAddResult>;
     pin: {
-        add: (cid: string, options?: { recursive?: boolean }) => Promise<{ cid: string }>;
-        rm: (cid: string, options?: { recursive?: boolean }) => Promise<{ cid: string }>;
+        add: (
+            cid: string,
+            options?: { recursive?: boolean }
+        ) => Promise<{ cid: string }>;
+        rm: (
+            cid: string,
+            options?: { recursive?: boolean }
+        ) => Promise<{ cid: string }>;
         ls: () => AsyncIterable<{ cid: string; type: string }>;
     };
     dag: {
-        get: (cid: string, options?: Record<string, unknown>) => Promise<{ value: unknown; remainderPath: string }>;
-        put: (data: unknown, options?: Record<string, unknown>) => Promise<{ cid: string }>;
+        get: (
+            cid: string,
+            options?: Record<string, unknown>
+        ) => Promise<{ value: unknown; remainderPath: string }>;
+        put: (
+            data: unknown,
+            options?: Record<string, unknown>
+        ) => Promise<{ cid: string }>;
     };
     pubsub: {
         publish: (topic: string, data: Uint8Array) => Promise<void>;
-        subscribe: (topic: string) => AsyncIterable<{ from: string; data: Uint8Array; topic: string }>;
+        subscribe: (
+            topic: string
+        ) => AsyncIterable<{ from: string; data: Uint8Array; topic: string }>;
         unsubscribe: (topic: string) => Promise<void>;
         peers: (topic: string) => Promise<string[]>;
     };
@@ -92,7 +115,9 @@ export interface IpfsRepositoryStats {
 }
 
 @Injectable()
-export class IpfsClient implements OnModuleInit, OnModuleDestroy, HealthProvider {
+export class IpfsClient
+    implements OnModuleInit, OnModuleDestroy, HealthProvider
+{
     private client: KuboRPCClient | null = null;
     private connectionStatus: IpfsConnectionStatus = {
         connected: false,
@@ -101,7 +126,8 @@ export class IpfsClient implements OnModuleInit, OnModuleDestroy, HealthProvider
 
     constructor(
         private readonly logger: Logger,
-        private readonly healthService: HealthService
+        private readonly healthService: HealthService,
+        private readonly configService: ConfigService
     ) {
         this.logger.info('IPFS Kubo RPC Client created');
     }
@@ -127,40 +153,54 @@ export class IpfsClient implements OnModuleInit, OnModuleDestroy, HealthProvider
      * Initialize connection to Kubo RPC API
      */
     async initialize(): Promise<void> {
-        try {
-            this.logger.info(
-                `🔗 Connecting to Kubo RPC API at ${config.ipfs.apiUrl}`
-            );
+        const appConfig = this.configService.get('app');
+        const ipfsApiUrl = appConfig.ipfs.apiUrl;
+        const maxCooldown = 10 * 1000;
+        let cooldown = 0;
 
-            // Create client connection to Kubo
-            this.client = create({ url: config.ipfs.apiUrl });
-
-            // Test the connection
-            await this.checkConnection();
-
-            if (!this.connectionStatus.connected) {
-                throw new Error(
-                    'Failed to establish connection to Kubo RPC API'
+        while (!this.connectionStatus.connected) {
+            try {
+                this.logger.info(
+                    `🔗 Connecting to Kubo RPC API at ${ipfsApiUrl}`
                 );
-            }
 
-            this.logger.info('✅ IPFS Kubo RPC Client connected successfully');
-        } catch (error) {
-            this.logger.error(
-                '❌ Failed to initialize IPFS client',
-                {
-                    error: error instanceof Error ? error.message : error,
-                    apiUrl: config.ipfs.apiUrl,
+                // Create client connection to Kubo
+                this.client = create({ url: ipfsApiUrl });
+
+                // Test the connection
+                await this.updateConnectionStatus();
+
+                if (!this.connectionStatus.connected) {
+                    throw new Error(
+                        'Failed to establish connection to Kubo RPC API'
+                    );
                 }
-            );
-            throw new Error('Failed to establish IPFS connection');
+
+                this.logger.info(
+                    '✅ IPFS Kubo RPC Client connected successfully'
+                );
+            } catch (error) {
+                this.logger.error('❌ Failed to initialize IPFS client', {
+                    error: error instanceof Error ? error.message : error,
+                    apiUrl: ipfsApiUrl,
+                });
+            }
+            cooldown = Math.min(cooldown + 1000, maxCooldown);
+            await wait(cooldown);
+        }
+    }
+
+    async awaitConnection(): Promise<void> {
+        while (!(await this.updateConnectionStatus())) {
+            await wait(5000);
+            this.logger.info('🔄 Waiting for IPFS connection...');
         }
     }
 
     /**
      * Check connection to Kubo node
      */
-    async checkConnection(): Promise<boolean> {
+    private async updateConnectionStatus(): Promise<boolean> {
         if (!this.client) {
             this.connectionStatus = {
                 connected: false,
@@ -197,13 +237,10 @@ export class IpfsClient implements OnModuleInit, OnModuleDestroy, HealthProvider
                 error: error instanceof Error ? error.message : 'Unknown error',
             };
 
-            this.logger.error(
-                '❌ IPFS connection check failed',
-                {
-                    error: error instanceof Error ? error.message : error,
-                    apiUrl: config.ipfs.apiUrl,
-                }
-            );
+            this.logger.debug('❌ IPFS connection check failed', {
+                error: error instanceof Error ? error.message : error,
+                apiUrl: this.configService.get('app').ipfs.apiUrl,
+            });
 
             return false;
         }
@@ -217,20 +254,17 @@ export class IpfsClient implements OnModuleInit, OnModuleDestroy, HealthProvider
 
         try {
             if (!this.connectionStatus.connected) {
-                await this.checkConnection();
+                await this.updateConnectionStatus();
                 if (!this.connectionStatus.connected) {
                     throw new Error('IPFS client not connected');
                 }
             }
 
-            this.logger.debug(
-                `📌 Pinning content: ${request.cid}`,
-                {
-                    cid: request.cid,
-                    recursive: request.recursive,
-                    clientIP: request.clientIP,
-                }
-            );
+            this.logger.debug(`📌 Pinning content: ${request.cid}`, {
+                cid: request.cid,
+                recursive: request.recursive,
+                clientIP: request.clientIP,
+            });
 
             if (!this.client) {
                 throw new Error('IPFS client not initialized');
@@ -242,14 +276,11 @@ export class IpfsClient implements OnModuleInit, OnModuleDestroy, HealthProvider
 
             const duration = Date.now() - startTime;
 
-            this.logger.info(
-                `✅ Content pinned successfully: ${request.cid}`,
-                {
-                    cid: result.toString(),
-                    duration,
-                    recursive: request.recursive,
-                }
-            );
+            this.logger.info(`✅ Content pinned successfully: ${request.cid}`, {
+                cid: result.toString(),
+                duration,
+                recursive: request.recursive,
+            });
 
             return {
                 cid: result.toString(),
@@ -258,14 +289,11 @@ export class IpfsClient implements OnModuleInit, OnModuleDestroy, HealthProvider
         } catch (error) {
             const duration = Date.now() - startTime;
 
-            this.logger.error(
-                `❌ Failed to pin content: ${request.cid}`,
-                {
-                    error: error instanceof Error ? error.message : error,
-                    duration,
-                    cid: request.cid,
-                }
-            );
+            this.logger.error(`❌ Failed to pin content: ${request.cid}`, {
+                error: error instanceof Error ? error.message : error,
+                duration,
+                cid: request.cid,
+            });
 
             return {
                 cid: request.cid,
@@ -281,7 +309,7 @@ export class IpfsClient implements OnModuleInit, OnModuleDestroy, HealthProvider
     async unpinContent(cid: string): Promise<boolean> {
         try {
             if (!this.connectionStatus.connected) {
-                await this.checkConnection();
+                await this.updateConnectionStatus();
                 if (!this.connectionStatus.connected) {
                     throw new Error('IPFS client not connected');
                 }
@@ -295,20 +323,16 @@ export class IpfsClient implements OnModuleInit, OnModuleDestroy, HealthProvider
 
             await this.client.pin.rm(cid);
 
-            this.logger.info(
-                `✅ Content unpinned successfully: ${cid}`,
-                { cid }
-            );
+            this.logger.info(`✅ Content unpinned successfully: ${cid}`, {
+                cid,
+            });
 
             return true;
         } catch (error) {
-            this.logger.error(
-                `❌ Failed to unpin content: ${cid}`,
-                {
-                    error: error instanceof Error ? error.message : error,
-                    cid,
-                }
-            );
+            this.logger.error(`❌ Failed to unpin content: ${cid}`, {
+                error: error instanceof Error ? error.message : error,
+                cid,
+            });
             return false;
         }
     }
@@ -319,7 +343,7 @@ export class IpfsClient implements OnModuleInit, OnModuleDestroy, HealthProvider
     async getDagContent(cid: string): Promise<unknown> {
         try {
             if (!this.connectionStatus.connected) {
-                await this.checkConnection();
+                await this.updateConnectionStatus();
                 if (!this.connectionStatus.connected) {
                     throw new Error('IPFS client not connected');
                 }
@@ -333,20 +357,14 @@ export class IpfsClient implements OnModuleInit, OnModuleDestroy, HealthProvider
 
             const result = await this.client.dag.get(CID.parse(cid));
 
-            this.logger.debug(
-                `✅ DAG content retrieved: ${cid}`,
-                { cid }
-            );
+            this.logger.debug(`✅ DAG content retrieved: ${cid}`, { cid });
 
             return result.value;
         } catch (error) {
-            this.logger.error(
-                `❌ Failed to get DAG content: ${cid}`,
-                {
-                    error: error instanceof Error ? error.message : error,
-                    cid,
-                }
-            );
+            this.logger.error(`❌ Failed to get DAG content: ${cid}`, {
+                error: error instanceof Error ? error.message : error,
+                cid,
+            });
             throw error;
         }
     }
@@ -360,12 +378,9 @@ export class IpfsClient implements OnModuleInit, OnModuleDestroy, HealthProvider
             this.logger.debug(`Mock pubsub publish to topic: ${topic}`);
             // await this.client!.pubsub.publish(topic, data);
         } catch (error) {
-            this.logger.error(
-                `Failed to publish to topic: ${topic}`,
-                {
-                    error: error instanceof Error ? error.message : error,
-                }
-            );
+            this.logger.error(`Failed to publish to topic: ${topic}`, {
+                error: error instanceof Error ? error.message : error,
+            });
             throw error;
         }
     }
@@ -385,12 +400,9 @@ export class IpfsClient implements OnModuleInit, OnModuleDestroy, HealthProvider
                 },
             };
         } catch (error) {
-            this.logger.error(
-                `Failed to subscribe to topic: ${topic}`,
-                {
-                    error: error instanceof Error ? error.message : error,
-                }
-            );
+            this.logger.error(`Failed to subscribe to topic: ${topic}`, {
+                error: error instanceof Error ? error.message : error,
+            });
             throw error;
         }
     }
@@ -401,7 +413,7 @@ export class IpfsClient implements OnModuleInit, OnModuleDestroy, HealthProvider
     async getRepositoryStats(): Promise<IpfsRepositoryStats> {
         try {
             if (!this.connectionStatus.connected) {
-                await this.checkConnection();
+                await this.updateConnectionStatus();
                 if (!this.connectionStatus.connected) {
                     throw new Error('IPFS client not connected');
                 }
@@ -421,12 +433,9 @@ export class IpfsClient implements OnModuleInit, OnModuleDestroy, HealthProvider
                 version: stats.version,
             };
         } catch (error) {
-            this.logger.error(
-                'Failed to get repository statistics',
-                {
-                    error: error instanceof Error ? error.message : error,
-                }
-            );
+            this.logger.error('Failed to get repository statistics', {
+                error: error instanceof Error ? error.message : error,
+            });
             throw error;
         }
     }
@@ -461,12 +470,9 @@ export class IpfsClient implements OnModuleInit, OnModuleDestroy, HealthProvider
 
             this.logger.info('✅ IPFS client shutdown complete');
         } catch (error) {
-            this.logger.error(
-                'Error during IPFS client shutdown',
-                {
-                    error: error instanceof Error ? error.message : error,
-                }
-            );
+            this.logger.error('Error during IPFS client shutdown', {
+                error: error instanceof Error ? error.message : error,
+            });
         }
     }
 

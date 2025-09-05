@@ -1,10 +1,15 @@
 // Basic rate limiter for DoS protection using shared validation utilities
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { RateLimitTracker } from '@my-mimisbrunnr/validation';
 import type { RateLimitConfig } from '@my-mimisbrunnr/config';
-import { config } from '../config/environment.js';
-import { Logger } from '../logger.js';
-import { HealthService, HealthProvider, HealthStatus } from '../health/health.service.js';
+import { Logger } from '../logger/logger.js';
+import { AppConfiguration } from '../config/configuration.js';
+import {
+    HealthService,
+    HealthProvider,
+    HealthStatus,
+} from '../health/health.service.js';
 
 interface RequestTracking {
     count: number;
@@ -24,22 +29,27 @@ export class BasicRateLimiter implements OnModuleDestroy, HealthProvider {
     private dailyTracking = new Map<string, DailyTracking>();
     private cleanupInterval?: NodeJS.Timeout;
 
+    private get config(): AppConfiguration {
+        return this.configService.get('app') as AppConfiguration;
+    }
+
     constructor(
         private readonly healthService: HealthService,
-        private readonly logger: Logger
+        private readonly logger: Logger,
+        private readonly configService: ConfigService
     ) {
         this.rateLimitTracker = new RateLimitTracker();
 
         // Start cleanup interval
         this.startCleanupInterval();
-        
+
         // Register with health service
         this.healthService.registerService('rate-limiter', this);
 
         this.logger.info('✅ Basic rate limiter created', {
-            apiRpm: config.security.apiRpm,
-            pinAddMaxPerDay: config.security.pinAddMaxPerIpPerDay,
-            pinAddBurst: config.security.pinAddBurst,
+            apiRpm: this.config.security.apiRpm,
+            pinAddMaxPerDay: this.config.security.pinAddMaxPerIpPerDay,
+            pinAddBurst: this.config.security.pinAddBurst,
         });
     }
 
@@ -56,7 +66,7 @@ export class BasicRateLimiter implements OnModuleDestroy, HealthProvider {
     ): Promise<{ allowed: boolean; remaining: number; resetTime: number }> {
         const rateLimitConfig: RateLimitConfig = {
             windowMs: 60 * 1000, // 1 minute
-            maxRequests: config.security.apiRpm,
+            maxRequests: this.config.security.apiRpm,
         };
 
         try {
@@ -75,7 +85,7 @@ export class BasicRateLimiter implements OnModuleDestroy, HealthProvider {
             const tracking = this.requestTracking.get(clientIP);
             const remaining = Math.max(
                 0,
-                config.security.apiRpm - (tracking?.count || 0)
+                this.config.security.apiRpm - (tracking?.count || 0)
             );
             const resetTime = tracking
                 ? tracking.firstRequest + rateLimitConfig.windowMs
@@ -94,7 +104,7 @@ export class BasicRateLimiter implements OnModuleDestroy, HealthProvider {
             // On error, allow the request but log it
             return {
                 allowed: true,
-                remaining: config.security.apiRpm,
+                remaining: this.config.security.apiRpm,
                 resetTime: Date.now() + rateLimitConfig.windowMs,
             };
         }
@@ -110,7 +120,7 @@ export class BasicRateLimiter implements OnModuleDestroy, HealthProvider {
             // Check burst limit (pins per minute)
             const burstConfig: RateLimitConfig = {
                 windowMs: 60 * 1000, // 1 minute
-                maxRequests: config.security.pinAddBurst,
+                maxRequests: this.config.security.pinAddBurst,
             };
 
             const burstAllowed = this.rateLimitTracker.checkRateLimit(
@@ -131,13 +141,14 @@ export class BasicRateLimiter implements OnModuleDestroy, HealthProvider {
 
             if (dailyTracking && dailyTracking.date === today) {
                 if (
-                    dailyTracking.count >= config.security.pinAddMaxPerIpPerDay
+                    dailyTracking.count >=
+                    this.config.security.pinAddMaxPerIpPerDay
                 ) {
                     this.logger.warn(
                         `⚠️  Daily pin quota exceeded for IP: ${clientIP}`,
                         {
                             count: dailyTracking.count,
-                            limit: config.security.pinAddMaxPerIpPerDay,
+                            limit: this.config.security.pinAddMaxPerIpPerDay,
                         }
                     );
                     return { allowed: false, reason: 'daily_quota_exceeded' };
@@ -164,7 +175,7 @@ export class BasicRateLimiter implements OnModuleDestroy, HealthProvider {
         try {
             const burstConfig: RateLimitConfig = {
                 windowMs: 60 * 1000, // 1 minute
-                maxRequests: config.security.dagGetBurst,
+                maxRequests: this.config.security.dagGetBurst,
             };
 
             const allowed = this.rateLimitTracker.checkRateLimit(
@@ -198,7 +209,7 @@ export class BasicRateLimiter implements OnModuleDestroy, HealthProvider {
         try {
             const burstConfig: RateLimitConfig = {
                 windowMs: 60 * 1000, // 1 minute
-                maxRequests: config.security.pubsubPubBurst,
+                maxRequests: this.config.security.pubsubPubBurst,
             };
 
             const allowed = this.rateLimitTracker.checkRateLimit(
@@ -232,7 +243,7 @@ export class BasicRateLimiter implements OnModuleDestroy, HealthProvider {
         try {
             const burstConfig: RateLimitConfig = {
                 windowMs: 60 * 1000, // 1 minute
-                maxRequests: config.security.pubsubSubBurst,
+                maxRequests: this.config.security.pubsubSubBurst,
             };
 
             const allowed = this.rateLimitTracker.checkRateLimit(
@@ -296,7 +307,7 @@ export class BasicRateLimiter implements OnModuleDestroy, HealthProvider {
     private startCleanupInterval(): void {
         this.cleanupInterval = setInterval(() => {
             this.cleanupOldRequests();
-        }, config.operational.storageCleanupInterval);
+        }, this.config.operational.storageCleanupInterval);
     }
 
     /**
@@ -357,12 +368,13 @@ export class BasicRateLimiter implements OnModuleDestroy, HealthProvider {
                 details: {
                     ...stats,
                     config: {
-                        apiRpm: config.security.apiRpm,
-                        pinAddMaxPerDay: config.security.pinAddMaxPerIpPerDay,
-                        pinAddBurst: config.security.pinAddBurst,
-                        dagGetBurst: config.security.dagGetBurst,
-                        pubsubPubBurst: config.security.pubsubPubBurst,
-                        pubsubSubBurst: config.security.pubsubSubBurst,
+                        apiRpm: this.config.security.apiRpm,
+                        pinAddMaxPerDay:
+                            this.config.security.pinAddMaxPerIpPerDay,
+                        pinAddBurst: this.config.security.pinAddBurst,
+                        dagGetBurst: this.config.security.dagGetBurst,
+                        pubsubPubBurst: this.config.security.pubsubPubBurst,
+                        pubsubSubBurst: this.config.security.pubsubSubBurst,
                     },
                 },
             };

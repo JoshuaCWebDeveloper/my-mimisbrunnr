@@ -1,8 +1,9 @@
 // Bootstrap logic for the Perpetual Node service using NestJS DI
 import { NestFactory } from '@nestjs/core';
+import { ConfigService } from '@nestjs/config';
 import { AppModule } from './app.module.js';
-import { ROOT_LOGGER, Logger } from './logger.js';
-import { config } from './config/environment.js';
+import { Logger } from './logger/logger.js';
+import { ROOT_LOGGER } from './logger/logger.module.js';
 
 function setupGlobalErrorHandlers(logger: Logger): void {
     let isShuttingDown = false;
@@ -52,13 +53,13 @@ function setupGlobalErrorHandlers(logger: Logger): void {
 export async function bootstrap(): Promise<void> {
     try {
         // Create HTTP application for health endpoints
-        const app = await NestFactory.create(AppModule, {
-            logger: false, // Disable NestJS default logger
-        });
+        const app = await NestFactory.create(AppModule);
 
         // Get our custom logger and set it as the app logger
-        const logger = app.get(ROOT_LOGGER);
-        app.useLogger(logger);
+        const rootLogger = app.get(ROOT_LOGGER);
+        app.useLogger(rootLogger.createChild('Nest'));
+
+        const logger = rootLogger.createChild('Bootstrap');
 
         // Set up global error handlers
         setupGlobalErrorHandlers(logger);
@@ -72,9 +73,13 @@ export async function bootstrap(): Promise<void> {
             pid: process.pid,
         });
 
+        // Get configuration service
+        const configService = app.get(ConfigService);
+        const appConfig = configService.get('app');
+
         // Start HTTP server for health endpoints
-        await app.listen(config.service.port);
-        logger.info(`🌐 HTTP server started on port ${config.service.port}`);
+        await app.listen(appConfig.service.port);
+        logger.info(`🌐 HTTP server started on port ${appConfig.service.port}`);
 
         // NestJS will automatically initialize all services via lifecycle hooks
         logger.info('🎉 Perpetual Node Service started successfully');
