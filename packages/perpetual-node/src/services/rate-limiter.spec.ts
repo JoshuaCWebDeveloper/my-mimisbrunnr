@@ -46,7 +46,7 @@ describe('BasicRateLimiter', () => {
                 operational: {
                     storageCleanupInterval: 3600000,
                 },
-            })
+            }),
         };
 
         // Get the mocked RateLimitTracker
@@ -285,7 +285,7 @@ describe('BasicRateLimiter', () => {
                     operational: {
                         storageCleanupInterval: 3600000,
                     },
-                })
+                }),
             };
 
             const testRateLimiter = new BasicRateLimiter(

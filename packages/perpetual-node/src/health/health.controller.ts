@@ -3,9 +3,7 @@ import { HealthService, HealthStatus } from './health.service.js';
 
 @Controller('health')
 export class HealthController {
-    constructor(
-        private readonly healthService: HealthService
-    ) {}
+    constructor(private readonly healthService: HealthService) {}
 
     @Get()
     async getOverallHealth(): Promise<HealthStatus> {
@@ -56,7 +54,9 @@ export class HealthController {
 
     @Get('rate-limiter')
     async getRateLimitHealth(): Promise<HealthStatus> {
-        const health = await this.healthService.getServiceHealth('rate-limiter');
+        const health = await this.healthService.getServiceHealth(
+            'rate-limiter'
+        );
         if (!health) {
             return {
                 status: 'unhealthy',

@@ -68,7 +68,7 @@ describe('OrbitDBManager', () => {
                     logName: 'test-discovery-log',
                     dataDir: '/tmp/test-orbitdb',
                 },
-            })
+            }),
         };
 
         // Mock OrbitDB database - use partial to allow mock functions
@@ -117,15 +117,18 @@ describe('OrbitDBManager', () => {
         it('should wait for IPFS client connection during initialization', async () => {
             // Mock IPFS client to eventually connect
             let connectAttempts = 0;
-            (mockIpfsClient.awaitConnection as unknown as ReturnType<typeof vi.fn>)
-                .mockImplementation(async () => {
-                    connectAttempts++;
-                    if (connectAttempts < 2) {
-                        // First call simulates waiting
-                        await new Promise(resolve => setTimeout(resolve, 10));
-                    }
-                    // Eventually resolves (simulates successful connection)
-                });
+            (
+                mockIpfsClient.awaitConnection as unknown as ReturnType<
+                    typeof vi.fn
+                >
+            ).mockImplementation(async () => {
+                connectAttempts++;
+                if (connectAttempts < 2) {
+                    // First call simulates waiting
+                    await new Promise(resolve => setTimeout(resolve, 10));
+                }
+                // Eventually resolves (simulates successful connection)
+            });
 
             vi.mocked(createOrbitDB).mockResolvedValue(mockOrbitDB);
 
@@ -211,7 +214,9 @@ describe('OrbitDBManager', () => {
             const result = await orbitdbManager.addDiscoveryRecord(mockRecord);
 
             expect(validateDiscoveryRecord).toHaveBeenCalledWith(mockRecord);
-            expect(mockDiscoveryLog.addOperation).toHaveBeenCalledWith(mockRecord);
+            expect(mockDiscoveryLog.addOperation).toHaveBeenCalledWith(
+                mockRecord
+            );
             expect(result).toBe('mock-hash');
         });
 

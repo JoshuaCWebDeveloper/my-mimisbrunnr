@@ -42,7 +42,7 @@ describe('ReplicationHandler', () => {
                     storageCleanupInterval: 3600000,
                     maxLogEntriesPinned: 1000,
                 },
-            })
+            }),
         };
 
         // Mock IPFS client

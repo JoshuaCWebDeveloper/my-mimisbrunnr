@@ -57,9 +57,9 @@ describe('IpfsClient', () => {
         mockConfigService = {
             get: vi.fn().mockReturnValue({
                 ipfs: {
-                    apiUrl: 'http://127.0.0.1:5001'
-                }
-            })
+                    apiUrl: 'http://127.0.0.1:5001',
+                },
+            }),
         };
         ipfsClient = new IpfsClient(
             mockLogger,
@@ -94,18 +94,22 @@ describe('IpfsClient', () => {
                 block: { get: vi.fn() },
             } as unknown as ReturnType<typeof create>);
 
-            const failingClient = new IpfsClient(mockLogger, {
-                registerService: vi.fn(),
-                unregisterService: vi.fn(),
-            } as unknown as HealthService, mockConfigService as unknown as import('@nestjs/config').ConfigService);
+            const failingClient = new IpfsClient(
+                mockLogger,
+                {
+                    registerService: vi.fn(),
+                    unregisterService: vi.fn(),
+                } as unknown as HealthService,
+                mockConfigService as unknown as import('@nestjs/config').ConfigService
+            );
 
             // The initialize method retries indefinitely, so we test with a timeout
             // After attempting to initialize, the connection should still be false
             const _initPromise = failingClient.initialize();
-            
+
             // Wait a short time to let it try once
             await new Promise(resolve => setTimeout(resolve, 100));
-            
+
             // Check that the connection status reflects the failure
             const status = failingClient.getConnectionStatus();
             expect(status.connected).toBe(false);
@@ -133,13 +137,15 @@ describe('IpfsClient', () => {
             // Test that a successful connection can report errors on subsequent method calls
             // First let the client initialize successfully
             await ipfsClient.initialize();
-            
+
             // Now mock the raw client to fail on specific operations
             const rawClient = ipfsClient.getRawClient() as unknown as {
                 pin: { add: ReturnType<typeof vi.fn> };
             };
             const originalPin = rawClient.pin.add;
-            rawClient.pin.add = vi.fn().mockRejectedValue(new Error('Network error'));
+            rawClient.pin.add = vi
+                .fn()
+                .mockRejectedValue(new Error('Network error'));
 
             // Try to pin content, which will trigger internal connection check
             const result = await ipfsClient.pinContent({
@@ -152,7 +158,7 @@ describe('IpfsClient', () => {
             // The pinContent call should fail but return a result with error
             expect(result.success).toBe(false);
             expect(result.error).toBe('Network error');
-            
+
             // Restore original method
             rawClient.pin.add = originalPin;
         });
