@@ -19,7 +19,7 @@
       "path": "./packages/validation-service"
     },
     {
-      "path": "./packages/orbitdb-manager"
+      "path": "./packages/orbitdb-service"
     }
   ]
 }

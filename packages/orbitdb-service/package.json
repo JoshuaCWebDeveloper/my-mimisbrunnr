@@ -1,5 +1,5 @@
 {
-  "name": "@my-mimisbrunnr/orbitdb-manager",
+  "name": "@my-mimisbrunnr/orbitdb-service",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -32,15 +32,15 @@
           "^build"
         ],
         "options": {
-          "outputPath": "packages/orbitdb-manager/dist",
-          "main": "packages/orbitdb-manager/src/index.ts",
-          "tsConfig": "packages/orbitdb-manager/tsconfig.lib.json"
+          "outputPath": "packages/orbitdb-service/dist",
+          "main": "packages/orbitdb-service/src/index.ts",
+          "tsConfig": "packages/orbitdb-service/tsconfig.lib.json"
         }
       },
       "dev": {
         "executor": "@nx/js:node",
         "options": {
-          "buildTarget": "@my-mimisbrunnr/orbitdb-manager:build",
+          "buildTarget": "@my-mimisbrunnr/orbitdb-service:build",
           "runBuildTargetDependencies": true
         }
       }
