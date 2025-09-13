@@ -14,7 +14,7 @@ local function get_cid_param()
     end
     
     -- Basic CID format validation (CIDv1 or CIDv0)
-    if not string.match(cid, "^[Qm][123456789ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]{44}$") and
+    if not string.match(cid, "^Qm[1-9A-HJ-NP-Za-km-z]{44}$") and
        not string.match(cid, "^b[a-z2-7]{58}$") then
         ngx.status = 400
         ngx.say('{"Message":"Invalid CID format"}')
