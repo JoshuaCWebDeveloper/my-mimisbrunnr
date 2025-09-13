@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 
 export default defineConfig(() => ({
     root: __dirname,
-    cacheDir: '../../node_modules/.vite/packages/perpetual-node',
+    cacheDir: '../../node_modules/.vite/packages/validation-service',
     plugins: [],
     // Uncomment this if you are using workers.
     // worker: {
@@ -18,6 +18,5 @@ export default defineConfig(() => ({
             reportsDirectory: './test-output/vitest/coverage',
             provider: 'v8' as const,
         },
-        setupFiles: ['vitest.setup.ts'],
     },
 }));

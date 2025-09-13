@@ -1,4 +1,4 @@
-// Bootstrap logic for the Perpetual Node service using NestJS DI
+// Bootstrap logic for the Orbitdb Manager service using NestJS DI
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { AppModule } from './app.module.js';
@@ -65,7 +65,7 @@ export async function bootstrap(): Promise<void> {
         setupGlobalErrorHandlers(logger);
 
         // Log startup information
-        logger.info('🚀 Starting Perpetual Node Service...');
+        logger.info('🚀 Starting Orbitdb Manager Service...');
         logger.info('📋 Service Information', {
             nodeVersion: process.version,
             platform: process.platform,
@@ -82,7 +82,7 @@ export async function bootstrap(): Promise<void> {
         logger.info(`🌐 HTTP server started on port ${appConfig.service.port}`);
 
         // NestJS will automatically initialize all services via lifecycle hooks
-        logger.info('🎉 Perpetual Node Service started successfully');
+        logger.info('🎉 Orbitdb Manager Service started successfully');
         logger.info('📡 Ready for OrbitDB replication and IPFS operations');
     } catch (error) {
         // eslint-disable-next-line no-console

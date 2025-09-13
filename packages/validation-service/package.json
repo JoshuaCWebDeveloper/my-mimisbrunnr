@@ -1,5 +1,5 @@
 {
-  "name": "@my-mimisbrunnr/perpetual-node",
+  "name": "@my-mimisbrunnr/validation-service",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -15,12 +15,8 @@
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "dependencies": {
-    "@my-mimisbrunnr/config": "^0.0.1",
-    "@my-mimisbrunnr/protocol": "^0.0.1",
-    "@my-mimisbrunnr/validation": "^0.0.1",
-    "tslib": "^2.3.0"
-  },
+  "dependencies": {},
+  "devDependencies": {},
   "nx": {
     "targets": {
       "build": {
@@ -32,15 +28,15 @@
           "^build"
         ],
         "options": {
-          "outputPath": "packages/perpetual-node/dist",
-          "main": "packages/perpetual-node/src/index.ts",
-          "tsConfig": "packages/perpetual-node/tsconfig.lib.json"
+          "outputPath": "packages/validation-service/dist",
+          "main": "packages/validation-service/src/index.ts",
+          "tsConfig": "packages/validation-service/tsconfig.lib.json"
         }
       },
       "dev": {
         "executor": "@nx/js:node",
         "options": {
-          "buildTarget": "@my-mimisbrunnr/perpetual-node:build",
+          "buildTarget": "@my-mimisbrunnr/validation-service:build",
           "runBuildTargetDependencies": true
         }
       }
