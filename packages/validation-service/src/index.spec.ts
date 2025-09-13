@@ -20,7 +20,7 @@ describe('Validation Service', () => {
     const port = 3001; // Use different port for tests
 
     beforeAll(async () => {
-        await new Promise<void>((resolve) => {
+        await new Promise<void>(resolve => {
             server = app.listen(port, () => {
                 resolve();
             });
@@ -28,7 +28,7 @@ describe('Validation Service', () => {
     });
 
     afterAll(async () => {
-        await new Promise<void>((resolve) => {
+        await new Promise<void>(resolve => {
             server.close(() => {
                 resolve();
             });
@@ -37,9 +37,7 @@ describe('Validation Service', () => {
 
     describe('Health Endpoints', () => {
         it('should return healthy status', async () => {
-            const response = await request(app)
-                .get('/health')
-                .expect(200);
+            const response = await request(app).get('/health').expect(200);
 
             expect(response.body).toMatchObject({
                 status: 'healthy',
@@ -50,9 +48,7 @@ describe('Validation Service', () => {
         });
 
         it('should return schemas list', async () => {
-            const response = await request(app)
-                .get('/schemas')
-                .expect(200);
+            const response = await request(app).get('/schemas').expect(200);
 
             expect(response.body).toHaveProperty('schemas');
             expect(response.body.schemas).toContain('taglist/v1');
@@ -132,7 +128,9 @@ describe('Validation Service', () => {
 
                 expect(response.body.valid).toBe(false);
                 expect(response.body.errors).toBeDefined();
-                const handleError = response.body.errors.find((e: ValidationError) => e.instancePath === '/handle');
+                const handleError = response.body.errors.find(
+                    (e: ValidationError) => e.instancePath === '/handle'
+                );
                 expect(handleError).toBeDefined();
                 expect(handleError.keyword).toBe('pattern');
             });
@@ -154,8 +152,9 @@ describe('Validation Service', () => {
                     .expect(400);
 
                 expect(response.body.valid).toBe(false);
-                const tagError = response.body.errors.find((e: ValidationError) => 
-                    e.instancePath === '/tags/0' && e.keyword === 'pattern'
+                const tagError = response.body.errors.find(
+                    (e: ValidationError) =>
+                        e.instancePath === '/tags/0' && e.keyword === 'pattern'
                 );
                 expect(tagError).toBeDefined();
             });
@@ -177,8 +176,8 @@ describe('Validation Service', () => {
                     .expect(400);
 
                 expect(response.body.valid).toBe(false);
-                const maxItemsError = response.body.errors.find((e: ValidationError) => 
-                    e.keyword === 'maxItems'
+                const maxItemsError = response.body.errors.find(
+                    (e: ValidationError) => e.keyword === 'maxItems'
                 );
                 expect(maxItemsError).toBeDefined();
             });
@@ -200,8 +199,8 @@ describe('Validation Service', () => {
                     .expect(400);
 
                 expect(response.body.valid).toBe(false);
-                const uniqueError = response.body.errors.find((e: ValidationError) => 
-                    e.keyword === 'uniqueItems'
+                const uniqueError = response.body.errors.find(
+                    (e: ValidationError) => e.keyword === 'uniqueItems'
                 );
                 expect(uniqueError).toBeDefined();
             });
@@ -247,8 +246,9 @@ describe('Validation Service', () => {
                     .expect(400);
 
                 expect(response.body.valid).toBe(false);
-                const cidError = response.body.errors.find((e: ValidationError) => 
-                    e.instancePath === '/cid' && e.keyword === 'pattern'
+                const cidError = response.body.errors.find(
+                    (e: ValidationError) =>
+                        e.instancePath === '/cid' && e.keyword === 'pattern'
                 );
                 expect(cidError).toBeDefined();
             });
@@ -270,8 +270,9 @@ describe('Validation Service', () => {
                     .expect(400);
 
                 expect(response.body.valid).toBe(false);
-                const authorError = response.body.errors.find((e: ValidationError) => 
-                    e.instancePath === '/author' && e.keyword === 'pattern'
+                const authorError = response.body.errors.find(
+                    (e: ValidationError) =>
+                        e.instancePath === '/author' && e.keyword === 'pattern'
                 );
                 expect(authorError).toBeDefined();
             });
@@ -370,22 +371,26 @@ describe('Validation Service', () => {
 
             expect(duration).toBeLessThan(100); // Should complete in under 100ms
             expect(response.body.validationTime).toBeDefined();
-            
+
             // Parse validation time to ensure it's reasonable
-            const validationTimeMs = parseFloat(response.body.validationTime.replace('ms', ''));
+            const validationTimeMs = parseFloat(
+                response.body.validationTime.replace('ms', '')
+            );
             expect(validationTimeMs).toBeLessThan(10); // AJV should be very fast
         });
     });
 
     describe('CORS Headers', () => {
         it('should include CORS headers in responses', async () => {
-            const response = await request(app)
-                .get('/health')
-                .expect(200);
+            const response = await request(app).get('/health').expect(200);
 
             expect(response.headers['access-control-allow-origin']).toBe('*');
-            expect(response.headers['access-control-allow-methods']).toBe('GET, POST, OPTIONS');
-            expect(response.headers['access-control-allow-headers']).toBe('Content-Type, Authorization');
+            expect(response.headers['access-control-allow-methods']).toBe(
+                'GET, POST, OPTIONS'
+            );
+            expect(response.headers['access-control-allow-headers']).toBe(
+                'Content-Type, Authorization'
+            );
         });
 
         it('should handle OPTIONS preflight requests', async () => {
