@@ -1,0 +1,140 @@
+version: '3.8'
+
+services:
+  # Kubo IPFS Node - Official container
+  kubo:
+    image: ipfs/kubo:v0.37.0 # Pin to specific version for security
+    container_name: mimis-kubo
+    restart: unless-stopped
+    ports:
+      - '4001:4001' # P2P swarm port
+      - '4001:4001/udp' # QUIC
+    environment:
+      - IPFS_PROFILE=server
+      - IPFS_PATH=/data/ipfs
+    volumes:
+      - ./docker/volumes/kubo_data:/data/ipfs
+    # Use default IPFS startup for basic orchestration testing
+    healthcheck:
+      test: ['CMD', 'ipfs', 'version']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - mimis-network
+
+  # OpenResty Security Proxy - Nginx + Lua facades
+  proxy:
+    image: openresty/openresty:1.21.4.2-alpine
+    container_name: mimis-proxy
+    restart: unless-stopped
+    ports:
+      - '5001:5001' # IPFS API proxy (replaces direct Kubo access)
+      - '8080:8080' # Status and health endpoints
+    volumes:
+      - ./packages/validation-proxy/src/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./packages/validation-proxy/src/lua:/etc/nginx/lua:ro
+    depends_on:
+      kubo:
+        condition: service_healthy
+      validator:
+        condition: service_healthy
+    networks:
+      - mimis-network
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:5001/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    environment:
+      - NGINX_WORKER_PROCESSES=auto
+    # Add shared memory for rate limiting
+    tmpfs:
+      - /dev/shm:size=64m
+
+  # AJV Validation Sidecar
+  validator:
+    build:
+      context: .
+      dockerfile: packages/validation-service/Dockerfile
+    container_name: mimis-validator
+    restart: unless-stopped
+    expose:
+      - '3000'
+    environment:
+      - NODE_ENV=production
+      - VALIDATOR_PORT=3000
+      - LOG_LEVEL=info
+    networks:
+      - mimis-network
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    # Security constraints
+    read_only: true
+    tmpfs:
+      - /tmp:size=100m
+    user: '1001:1001'
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  # OrbitDB Manager Service
+  orbitdb-service:
+    build:
+      context: .
+      dockerfile: packages/orbitdb-service/Dockerfile
+    container_name: mimis-orbitdb-service
+    restart: unless-stopped
+    expose:
+      - '3001'
+    environment:
+      - NODE_ENV=development
+      - IPFS_API_URL=http://kubo:5001
+      - ORBITDB_LOG_NAME=xcom-taglist-discovery
+      - ORBITDB_DATA_DIR=/app/data/orbitdb
+      - SERVICE_PORT=3001
+      - SERVICE_LOG_CONFIG=logging.yaml
+      - SERVICE_HEALTH_CHECK_INTERVAL=30000
+    volumes:
+      - ./docker/volumes/orbitdb_data:/app/data/orbitdb
+    depends_on:
+      kubo:
+        condition: service_healthy
+    networks:
+      - mimis-network
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3001/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 45s
+    # Security constraints
+    read_only: true
+    tmpfs:
+      - /tmp:size=100m
+    user: '1002:1002'
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  mimis-network:
+    driver: bridge
+    name: mimisbrunnr-network
+
+# Using local bind mounts instead of Docker volumes
+# volumes:
+#   kubo_data:
+#     driver: local
+#     name: mimis-kubo-data
+#   orbitdb_data:
+#     driver: local
+#     name: mimis-orbitdb-data
