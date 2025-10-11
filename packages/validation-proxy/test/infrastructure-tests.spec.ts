@@ -31,7 +31,8 @@ async function waitForHealthyContainers(maxRetries = 20, delayMs = 3000) {
             if (healthyCount >= 3) {
                 return true;
             }
-        } catch (error) {
+        } catch (_e) {
+            // eslint-disable-next-line no-console
             console.log(
                 `Waiting for containers... attempt ${i + 1}/${maxRetries}`
             );
@@ -57,11 +58,13 @@ describe('Infrastructure Tests', () => {
             // Wait for containers to be healthy
             const healthy = await waitForHealthyContainers();
             if (!healthy) {
+                // eslint-disable-next-line no-console
                 console.warn(
                     'Warning: Not all containers are healthy yet. Some tests may fail.'
                 );
             }
         } catch (error) {
+            // eslint-disable-next-line no-console
             console.error('Failed to check container status:', error);
             throw new Error(
                 'Docker containers are not running. Please run: docker-compose up -d'
