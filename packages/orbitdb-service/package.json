@@ -37,6 +37,15 @@
           "tsConfig": "packages/orbitdb-service/tsconfig.lib.json"
         }
       },
+      "docker:build": {
+        "dependsOn": [
+          "build"
+        ],
+        "command": "docker build . -f packages/orbitdb-service/Dockerfile -t packages-orbitdb-service",
+        "options": {
+          "cwd": "."
+        }
+      },
       "dev": {
         "executor": "@nx/js:node",
         "options": {

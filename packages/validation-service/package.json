@@ -33,6 +33,15 @@
           "tsConfig": "packages/validation-service/tsconfig.lib.json"
         }
       },
+      "docker:build": {
+        "dependsOn": [
+          "build"
+        ],
+        "command": "docker build . -f packages/validation-service/Dockerfile -t packages-validation-service",
+        "options": {
+          "cwd": "."
+        }
+      },
       "dev": {
         "executor": "@nx/js:node",
         "options": {
