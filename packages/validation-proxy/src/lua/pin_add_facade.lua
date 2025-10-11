@@ -122,7 +122,7 @@ local function validate_schema(json_obj)
     local httpc = http.new()
     httpc:set_timeout(VALIDATOR_TIMEOUT)
     
-    local ok, err = httpc:connect("validator", 3000)
+    local ok, err = httpc:connect("validation-service", 3000)
     if not ok then
         ngx.status = 502
         ngx.say('{"Message":"Validator service unavailable"}')

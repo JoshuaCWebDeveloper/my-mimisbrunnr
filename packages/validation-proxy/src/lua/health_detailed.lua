@@ -11,7 +11,7 @@ local function check_all_services()
     -- Check validator health
     local validator_ok = false
     local validator_error = nil
-    local res, err = httpc:request_uri("http://validator:3000/health", {
+    local res, err = httpc:request_uri("http://validation-service:3000/health", {
         method = "GET",
         timeout = 2000
     })

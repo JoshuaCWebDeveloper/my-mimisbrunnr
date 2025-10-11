@@ -121,10 +121,10 @@ local function perform_schema_validation(json_obj, schema_type)
     local httpc = http.new()
     httpc:set_timeout(VALIDATOR_TIMEOUT)
     
-    local ok, err = httpc:connect("validator", 3000)
+    local ok, err = httpc:connect("validation-service", 3000)
     if not ok then
-        ngx.log(ngx.WARN, "Validator unavailable for DAG get validation")
-        return true -- Continue without validation if validator is down
+        ngx.log(ngx.WARN, "Validation service unavailable for DAG get validation")
+        return true -- Continue without validation if validation service is down
     end
     
     local validation_request = {

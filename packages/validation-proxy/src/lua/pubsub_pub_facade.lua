@@ -57,7 +57,7 @@ local function validate_pubsub_schema(json_obj)
     local httpc = http.new()
     httpc:set_timeout(VALIDATOR_TIMEOUT)
     
-    local ok, err = httpc:connect("validator", 3000)
+    local ok, err = httpc:connect("validation-service", 3000)
     if not ok then
         -- Allow message without validation if validator is down
         ngx.log(ngx.WARN, "Validator unavailable for pubsub validation")
