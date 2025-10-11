@@ -53,4 +53,5 @@ vitest.config.*.timestamp*
 logging.yaml
 
 ## Application
+/docker
 /orbitdb
