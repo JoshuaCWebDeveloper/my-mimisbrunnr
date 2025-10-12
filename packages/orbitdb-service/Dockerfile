@@ -1,12 +1,9 @@
-FROM node:18-alpine
+FROM node:22.17.0-alpine
 
 WORKDIR /app
 
 # Copy Root
 COPY package.json package-lock.json ./
-
-# Copy Service
-COPY packages/orbitdb-service/dist packages/orbitdb-service/dist
 
 # Copy Dependencies
 COPY packages/shared/config/dist packages/shared/config/dist
@@ -23,6 +20,9 @@ RUN npm ci --only=production --ignore-scripts && \
     npm cache clean --force
 # Explicit install scripts
 RUN npm explore @ipshipyard/node-datachannel -- npm run install
+
+# Copy Service
+COPY packages/orbitdb-service/dist packages/orbitdb-service/dist
 
 # Set working directory
 WORKDIR /app/packages/orbitdb-service/dist
