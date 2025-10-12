@@ -28,7 +28,7 @@ RUN npm explore @ipshipyard/node-datachannel -- npm run install
 WORKDIR /app/packages/orbitdb-service/dist
 
 # Create data directories
-RUN mkdir -p /app/data/orbitdb
+RUN mkdir -p ./orbitdb
 
 EXPOSE 3001
 

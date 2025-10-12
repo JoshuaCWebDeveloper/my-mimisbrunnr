@@ -100,7 +100,7 @@ services:
       - SERVICE_LOG_CONFIG=logging.yaml
       - SERVICE_HEALTH_CHECK_INTERVAL=30000
     volumes:
-      - ./docker/volumes/orbitdb_data:/app/data/orbitdb
+      - ./docker/volumes/orbitdb_data:/app/packages/orbitdb-service/dist/orbitdb
     depends_on:
       kubo:
         condition: service_healthy
