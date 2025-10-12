@@ -3,8 +3,6 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
   "exports": {
     ".": {
       "types": "./src/index.ts",
@@ -13,5 +11,18 @@
     },
     "./package.json": "./package.json"
   },
-  "dependencies": {}
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "dependencies": {},
+  "nx": {
+    "targets": {
+      "integration-test": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "vitest --config vitest.integration.config.ts",
+          "cwd": "packages/validation-proxy"
+        }
+      }
+    }
+  }
 }

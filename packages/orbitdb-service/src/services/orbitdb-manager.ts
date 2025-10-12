@@ -11,7 +11,7 @@ import {
     HealthProvider,
     HealthStatus,
 } from '../health/health.service.js';
-import { IpfsClient, IpfsHttpClient } from './ipfs-client.js';
+import { HeliaNode } from './helia-node.js';
 import { ReplicationHandler } from './replication-handler.js';
 import { OrbitDB, BaseDatabase } from '@orbitdb/core';
 
@@ -87,14 +87,6 @@ export interface ReplicationEvent {
     max: number;
 }
 
-export interface OrbitDBManagerOptions {
-    ipfs: IpfsHttpClient;
-    directory: string;
-    id?: string;
-}
-
-type OrbitDbIpfsArg = Parameters<typeof createOrbitDB>[0]['ipfs'];
-
 @Injectable()
 export class OrbitDBManager
     implements OnModuleInit, OnModuleDestroy, HealthProvider
@@ -111,7 +103,7 @@ export class OrbitDBManager
         new Map();
 
     constructor(
-        private readonly ipfsClient: IpfsClient,
+        private readonly heliaNode: HeliaNode,
         private readonly replicationHandler: ReplicationHandler,
         private readonly healthService: HealthService,
         private readonly logger: Logger,
@@ -148,20 +140,20 @@ export class OrbitDBManager
     }
 
     /**
-     * Initialize OrbitDB instance and connect to IPFS
+     * Initialize OrbitDB instance and connect to Helia
      */
     async initialize(): Promise<void> {
         try {
-            await this.ipfsClient.awaitConnection();
+            await this.heliaNode.awaitConnection();
 
-            // Create OrbitDB v3 instance
-            const ipfs = this.ipfsClient.getRawClient();
-            if (!ipfs) {
-                throw new Error('IPFS client not initialized');
+            // Create OrbitDB v3 instance with Helia
+            const helia = this.heliaNode.getHeliaInstance();
+            if (!helia) {
+                throw new Error('Helia node not initialized');
             }
 
             this.orbitdb = await createOrbitDB({
-                ipfs: ipfs as unknown as OrbitDbIpfsArg,
+                ipfs: helia,
             });
 
             this.connectionStatus = {
@@ -173,9 +165,10 @@ export class OrbitDBManager
 
             const appConfig = this.configService.get('app');
 
-            this.logger.info(`✅ OrbitDB instance created`, {
+            this.logger.info(`✅ OrbitDB instance created with Helia`, {
                 id: this.orbitdb?.id,
                 directory: appConfig.orbitdb.dataDir,
+                heliaPeerId: helia.libp2p.peerId.toString(),
             });
         } catch (error) {
             this.logger.error('Failed to initialize OrbitDB', {

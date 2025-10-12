@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { IpfsClient } from './services/ipfs-client.js';
+import { HeliaNode } from './services/helia-node.js';
 import { OrbitDBManager } from './services/orbitdb-manager.js';
 import { ReplicationHandler } from './services/replication-handler.js';
 import { BasicRateLimiter } from './services/rate-limiter.js';
@@ -11,6 +12,7 @@ import { ConfigModule } from './config/config.module.js';
     imports: [ConfigModule, LoggerModule, HealthModule],
     providers: [
         IpfsClient,
+        HeliaNode,
         OrbitDBManager,
         ReplicationHandler,
         BasicRateLimiter,
