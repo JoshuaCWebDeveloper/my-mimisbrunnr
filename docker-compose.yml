@@ -76,7 +76,6 @@ services:
     read_only: true
     tmpfs:
       - /tmp:size=100m
-    user: '1001:1001'
     cap_drop:
       - ALL
     security_opt:
@@ -116,7 +115,6 @@ services:
     read_only: true
     tmpfs:
       - /tmp:size=100m
-    user: '1002:1002'
     cap_drop:
       - ALL
     security_opt:
