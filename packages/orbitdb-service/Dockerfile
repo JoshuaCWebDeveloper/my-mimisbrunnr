@@ -21,6 +21,8 @@ COPY packages/shared/validation/package.json packages/shared/validation/package.
 # Install
 RUN npm ci --only=production --ignore-scripts && \
     npm cache clean --force
+# Explicit install scripts
+RUN npm explore @ipshipyard/node-datachannel -- npm run install
 
 # Set working directory
 WORKDIR /app/packages/orbitdb-service/dist

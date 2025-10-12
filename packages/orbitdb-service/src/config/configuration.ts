@@ -16,6 +16,9 @@ export class IpfsConfig {
     @IsOptional()
     @IsString()
     gatewayUrl?: string;
+
+    @IsOptional()
+    bootstrapNodes?: string[];
 }
 
 export class OrbitDbConfig {
@@ -126,6 +129,9 @@ export default registerAs('app', () => {
         ipfs: {
             apiUrl: process.env.IPFS_API_URL ?? 'http://kubo:5001',
             gatewayUrl: process.env.IPFS_GATEWAY_URL,
+            bootstrapNodes: process.env.IPFS_BOOTSTRAP_NODES
+                ? process.env.IPFS_BOOTSTRAP_NODES.split(',')
+                : [],
         },
         orbitdb: {
             logName: process.env.ORBITDB_LOG_NAME ?? 'xcom-taglist-discovery',

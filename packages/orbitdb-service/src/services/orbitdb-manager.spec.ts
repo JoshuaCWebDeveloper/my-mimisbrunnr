@@ -3,7 +3,7 @@ import { OrbitDBManager } from './orbitdb-manager.js';
 import { Logger } from '../logger/logger.js';
 import { createOrbitDB, type OrbitDB, type BaseDatabase } from '@orbitdb/core';
 import { validateDiscoveryRecord } from '@my-mimisbrunnr/validation';
-import type { IpfsClient } from './ipfs-client.js';
+import type { HeliaNode } from './helia-node.js';
 import type { ReplicationHandler } from './replication-handler.js';
 import type { HealthService } from '../health/health.service.js';
 
@@ -18,7 +18,7 @@ vi.mock('@my-mimisbrunnr/validation', () => ({
 
 describe('OrbitDBManager', () => {
     let orbitdbManager: OrbitDBManager;
-    let mockIpfsClient: Partial<IpfsClient>;
+    let mockHeliaNode: Partial<HeliaNode>;
     let mockReplicationHandler: Partial<ReplicationHandler>;
     let mockHealthService: Partial<HealthService>;
     let mockLogger: Logger;
@@ -36,13 +36,18 @@ describe('OrbitDBManager', () => {
             debug: vi.fn(),
         } as unknown as Logger;
 
-        // Mock IPFS client
-        mockIpfsClient = {
+        // Mock Helia node
+        mockHeliaNode = {
             getConnectionStatus: vi.fn().mockReturnValue({
                 connected: true,
                 lastCheck: Date.now(),
+                peers: 0,
             }),
-            getRawClient: vi.fn().mockReturnValue({ id: 'mock-ipfs-client' }),
+            getHeliaInstance: vi.fn().mockReturnValue({
+                libp2p: {
+                    peerId: { toString: () => 'mock-helia-peer-id' },
+                },
+            }),
             awaitConnection: vi.fn().mockResolvedValue(undefined),
         };
 
@@ -88,7 +93,7 @@ describe('OrbitDBManager', () => {
         } as unknown as OrbitDB;
 
         orbitdbManager = new OrbitDBManager(
-            mockIpfsClient as unknown as IpfsClient,
+            mockHeliaNode as unknown as HeliaNode,
             mockReplicationHandler as unknown as ReplicationHandler,
             mockHealthService as unknown as HealthService,
             mockLogger,
@@ -110,11 +115,11 @@ describe('OrbitDBManager', () => {
     });
 
     describe('initialization', () => {
-        it('should wait for IPFS client connection during initialization', async () => {
-            // Mock IPFS client to eventually connect
+        it('should wait for Helia node connection during initialization', async () => {
+            // Mock Helia node to eventually connect
             let connectAttempts = 0;
             (
-                mockIpfsClient.awaitConnection as unknown as ReturnType<
+                mockHeliaNode.awaitConnection as unknown as ReturnType<
                     typeof vi.fn
                 >
             ).mockImplementation(async () => {
@@ -130,35 +135,40 @@ describe('OrbitDBManager', () => {
 
             await orbitdbManager.initialize();
 
-            expect(mockIpfsClient.awaitConnection).toHaveBeenCalled();
+            expect(mockHeliaNode.awaitConnection).toHaveBeenCalled();
             expect(createOrbitDB).toHaveBeenCalled();
         });
 
-        it('should require IPFS raw client to be available', async () => {
+        it('should require Helia instance to be available', async () => {
             (
-                mockIpfsClient.getRawClient as unknown as ReturnType<
+                mockHeliaNode.getHeliaInstance as unknown as ReturnType<
                     typeof vi.fn
                 >
             ).mockReturnValue(null);
 
             await expect(orbitdbManager.initialize()).rejects.toThrow(
-                'IPFS client not initialized'
+                'Helia node not initialized'
             );
         });
 
-        it('should create OrbitDB instance with IPFS client', async () => {
+        it('should create OrbitDB instance with Helia', async () => {
             vi.mocked(createOrbitDB).mockResolvedValue(mockOrbitDB);
 
             await orbitdbManager.initialize();
 
             expect(createOrbitDB).toHaveBeenCalledWith({
-                ipfs: { id: 'mock-ipfs-client' },
+                ipfs: {
+                    libp2p: {
+                        peerId: { toString: expect.any(Function) },
+                    },
+                },
             });
             expect(mockLogger.info).toHaveBeenCalledWith(
-                '✅ OrbitDB instance created',
+                '✅ OrbitDB instance created with Helia',
                 {
                     id: 'mock-orbitdb-id',
                     directory: expect.any(String),
+                    heliaPeerId: 'mock-helia-peer-id',
                 }
             );
         });
