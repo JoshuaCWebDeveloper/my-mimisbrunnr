@@ -8,9 +8,6 @@ WORKDIR /app
 # Copy Root
 COPY package.json package-lock.json ./
 
-# Copy Service
-COPY packages/validation-service/dist packages/validation-service/dist
-
 # Copy Dependencies
 COPY packages/shared/config/dist packages/shared/config/dist
 COPY packages/shared/config/package.json packages/shared/config/package.json
@@ -24,6 +21,9 @@ COPY packages/shared/validation/package.json packages/shared/validation/package.
 # Install
 RUN npm ci --only=production --ignore-scripts && \
     npm cache clean --force
+
+# Copy Service
+COPY packages/validation-service/dist packages/validation-service/dist
 
 # Set working directory
 WORKDIR /app/packages/validation-service/dist
