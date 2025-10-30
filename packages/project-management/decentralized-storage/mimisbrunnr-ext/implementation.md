@@ -853,3 +853,415 @@ This implementation has been updated to reflect the revised minimal shared libra
 -   **Service layer** handles coordination and complex business operations
 
 This implementation proposal provides a comprehensive roadmap for enhancing the mimisbrunnr-ext package with decentralized capabilities while maintaining its existing functionality and user experience, using a feature-based service architecture with clear ownership boundaries and minimal shared dependencies.
+
+---
+
+## Implementation Tickets
+
+### Epic 1: Personal Backup and Restore (MVP)
+
+This section breaks down Epic 1 into concrete implementation tickets that can be completed in single sessions. Each ticket represents a complete, testable chunk of functionality.
+
+#### Ticket MM-27: POC - Basic IPFS Publish and Retrieve
+
+**Goal**: Establish that the extension can successfully communicate with IPFS by publishing and retrieving tag collections.
+
+**Scope**:
+- Add required dependencies (Helia, crypto libraries)
+- Create minimal data structures (TagCollection interface)
+- Set up Helia IPFS client in background script
+- Connect to perpetual node for improved DHT and pubsub reachability
+- Implement basic publish flow: current tags → IPFS
+- Implement basic retrieve flow: CID → tags
+- Add minimal UI to trigger publish and display CID
+- Test end-to-end: publish → get CID → retrieve by CID
+
+**Deliverables**:
+- Working extension that can publish tag collections to IPFS
+- Ability to retrieve published tags by CID
+- Proof that extension ↔ backend communication works
+
+**Out of Scope**:
+- Encryption, DID/IPNS, OrbitDB discovery, tweet verification
+- All authentication/identity features
+- Data merging or conflict resolution
+
+**Missing Functionality (to be added in later tickets)**:
+- ⚠️ **No encryption** - Tags published in plain text (MM-28, MM-29)
+- ⚠️ **No content validation** - No size limits, schema validation, or malicious content detection (MM-35)
+- ⚠️ **No error handling** - Basic error catching only, no retry logic (MM-36)
+- ⚠️ **No caching** - All IPFS operations fetch from network (MM-34)
+- ⚠️ **No rate limiting** - No protection against excessive API calls (MM-36)
+- ⚠️ **No authentication** - Anyone can retrieve published CIDs (MM-28, MM-31)
+- ⚠️ **No service architecture** - Direct implementation in background script (MM-33)
+
+**TODO Markers Required**: All code in this ticket should include TODO comments referencing the ticket where missing functionality will be added.
+
+---
+
+#### Ticket MM-28: Identity and Cryptography Foundation
+
+**Goal**: Implement complete identity system with key derivation, DID generation, and content encryption.
+
+**Scope**:
+- Implement scrypt-based key derivation (N=2^15, r=8, p=1)
+- Build Ed25519 keypair generation from derived seed
+- Create DID:key generation from public key
+- Implement passphrase validation (minimum 16 characters)
+- Build content encryption/decryption using separate salt from identity salt
+- Create IndexedDB schema for identity storage
+- Build identity service with repository pattern
+- Add passphrase management UI component
+- Test key derivation consistency and encryption round-trips
+
+**Deliverables**:
+- Complete crypto utilities module
+- Identity service with secure key storage
+- Passphrase input UI component
+- Unit tests for all cryptographic operations
+
+**Dependencies**:
+- MM-27 (POC completed)
+
+**Missing Functionality (to be added in later tickets)**:
+- ⚠️ **No key storage security** - IndexedDB encryption at rest not yet implemented (MM-36)
+- ⚠️ **No passphrase strength enforcement** - Only length check, no entropy validation (MM-35)
+- ⚠️ **No key rotation** - Once generated, keys cannot be changed (Epic 2)
+- ⚠️ **No backup/recovery** - If passphrase lost, identity is lost (Epic 2)
+- ⚠️ **No rate limiting on crypto operations** - Vulnerable to brute force attempts (MM-36)
+- ⚠️ **No secure memory clearing** - Keys may remain in memory longer than needed (MM-36)
+
+**TODO Markers Required**: Add TODO comments for security hardening items.
+
+---
+
+#### Ticket MM-29: Encrypted Manifest Publishing
+
+**Goal**: Publish encrypted tag collections with DID documents to IPFS/IPNS.
+
+**Scope**:
+- Extend data structures (UserManifest, EncryptedManifest, DIDDocument)
+- Implement DID document generation with service endpoints
+- Build encrypted manifest wrapper creation
+- Create IPNS publishing workflow using identity keys
+- Implement publishing service coordinating encryption + IPFS operations
+- Implement manifest update workflow (update DID doc service endpoint, IPNS republish)
+- Update background script to integrate publishing service
+- Add publishing UI controls to popup
+- Test encrypted publish flow: tags → encrypted manifest → DID doc → IPNS
+- Test update flow: modify tags → update manifest → update DID doc → IPNS republish
+
+**Deliverables**:
+- Complete publishing pipeline with encryption
+- DID document generation and IPNS publishing
+- Publishing UI with status feedback
+- Integration tests for full publish workflow
+
+**Dependencies**:
+- MM-28 (Identity and crypto implemented)
+
+**Missing Functionality (to be added in later tickets)**:
+- ⚠️ **No content validation** - DID docs and manifests not validated for structure/size (MM-35)
+- ⚠️ **No IPNS freshness checks** - No sequence number tracking or replay protection (MM-36)
+- ⚠️ **No caching** - Every retrieval hits IPFS network (MM-34)
+- ⚠️ **No retry logic** - IPNS publish failures not retried with backoff (MM-36)
+- ⚠️ **No tweet verification** - DID docs created without X.com proof validation (MM-31)
+- ⚠️ **No timestamp validation** - Manifests not checked for monotonic timestamps (MM-35)
+- ⚠️ **No service architecture** - Publishing logic not yet in dedicated service (MM-33)
+- ⚠️ **No telemetry** - No metrics on publish success/failure rates (MM-36)
+
+**TODO Markers Required**: Add TODO comments for validation and security items.
+
+---
+
+#### Ticket MM-30: OrbitDB Discovery Integration
+
+**Goal**: Enable handle-based discovery using OrbitDB log store.
+
+**Scope**:
+- Connect to backend OrbitDB service (orbitdb-service)
+- Implement discovery record creation (handle → IPNS/DID mapping)
+- Build lookup key generation (SHA-256 of lowercase handle)
+- Create discovery service for adding/querying records
+- Implement handle-to-DID resolution flow
+- Add discovery UI for handle lookup
+- Test discovery workflow: publish → add discovery record → lookup by handle
+
+**Deliverables**:
+- OrbitDB discovery log integration
+- Discovery service with add/query operations
+- Handle lookup UI component
+- End-to-end discovery tests
+
+**Dependencies**:
+- MM-29 (Publishing implemented)
+- Backend orbitdb-service running
+
+**Missing Functionality (to be added in later tickets)**:
+- ⚠️ **No pubsub message validation** - OrbitDB messages not validated against schemas (MM-36)
+- ⚠️ **No message de-duplication** - Duplicate discovery records not filtered (MM-36)
+- ⚠️ **No timestamp monotonicity** - Older records can overwrite newer ones (MM-35)
+- ⚠️ **No signature verification** - Discovery records accepted without cryptographic proof (MM-35)
+- ⚠️ **No rate limiting** - No protection against discovery record spam (MM-36)
+- ⚠️ **No caching** - OrbitDB queries always scan full log (MM-34)
+- ⚠️ **No fallback validation** - No backup validation when tweet proof unavailable (MM-35)
+- ⚠️ **No service architecture** - Discovery logic not in dedicated service (MM-33)
+
+**TODO Markers Required**: Add TODO comments for pubsub security and validation.
+
+---
+
+#### Ticket MM-31: Tweet Verification System
+
+**Goal**: Implement tweet-based identity verification with automatic validation.
+
+**Scope**:
+- Build verification token generation (signed DID + timestamp)
+- Create tweet proof UI for users to post verification tweets
+- Implement automatic verification flow (opens browser tab to tweet)
+- Build verification token extraction from tweet content
+- Create cryptographic signature verification
+- Add verification status tracking in User repository
+- Implement verification service coordinating the flow
+- Build verification UI components (status display, verification flow)
+- Test verification workflow: generate token → post tweet → auto-validate
+
+**Deliverables**:
+- Complete tweet verification system
+- Automatic validation via browser tab
+- Verification status tracking
+- Verification UI components
+- Integration tests for verification flow
+
+**Dependencies**:
+- MM-29 (Publishing with DIDs implemented)
+
+**Missing Functionality (to be added in later tickets)**:
+- ⚠️ **No verification expiration** - Once verified, status never expires (MM-35)
+- ⚠️ **No rate limiting** - Verification attempts not throttled (MM-36)
+- ⚠️ **No tweet content validation** - Tweet text not sanitized or size-checked (MM-35)
+- ⚠️ **No service architecture** - Verification not in dedicated service (MM-33)
+- ⚠️ **No verification caching** - Results not cached for offline use (MM-34)
+- ⚠️ **No telemetry** - Verification success/failure not tracked (MM-36)
+
+**TODO Markers Required**: Add TODO comments for verification security items.
+
+---
+
+#### Ticket MM-32: Data Restoration and Conflict Resolution
+
+**Goal**: Enable users to restore their encrypted tag collections and handle conflicts.
+
+**Scope**:
+- Implement encrypted manifest detection and decryption
+- Build tag collection retrieval and decryption
+- Create intelligent data merging algorithm (local vs. remote)
+- Implement conflict resolution strategies (timestamp-based LWW)
+- Build restoration service coordinating decrypt + merge operations
+- Add restoration UI (restore button, progress, conflict displays)
+- Create sync state tracking in repository
+- Test restoration workflow: publish from device A → restore on device B
+
+**Deliverables**:
+- Complete restoration pipeline with decryption
+- Intelligent data merging with conflict resolution
+- Restoration UI with progress feedback
+- Sync state management
+- End-to-end backup/restore tests
+
+**Dependencies**:
+- MM-29 (Publishing implemented)
+- MM-28 (Encryption/decryption available)
+
+**Missing Functionality (to be added in later tickets)**:
+- ⚠️ **No content validation** - Restored data not validated for integrity (MM-35)
+- ⚠️ **No caching** - Restored data not cached for offline access (MM-34)
+- ⚠️ **No retry logic** - Failed restorations not retried with backoff (MM-36)
+- ⚠️ **No service architecture** - Restoration not in dedicated service (MM-33)
+- ⚠️ **No telemetry** - Restoration metrics not tracked (MM-36)
+- ⚠️ **No size validation** - Large collections could overwhelm memory (MM-35)
+
+**TODO Markers Required**: Add TODO comments for validation and performance items.
+
+---
+
+#### Ticket MM-33: Feature-Based Service Architecture
+
+**Goal**: Refactor services into feature-based architecture with clear ownership.
+
+**Scope**:
+- Create base repository class for shared IndexedDB patterns
+- Implement UserService and UserRepository
+- Implement TagService and TagRepository (migrate existing)
+- Implement SubscriptionService and SubscriptionRepository (minimal for self-subscription)
+- Implement CacheService with cache repositories (manifest, tag collection, IPFS blocks)
+- Implement SyncService and SyncStateRepository
+- Build DecentralizedSyncService coordinating all services
+- Update background script to use service architecture
+- Migrate existing code to new architecture
+- Add unit tests for each service and repository
+
+**Deliverables**:
+- Complete feature-based service architecture
+- All services with owned repositories
+- DecentralizedSyncService for coordination
+- Updated background script integration
+- Comprehensive unit test suite
+
+**Dependencies**:
+- MM-32 (All major features implemented to refactor)
+
+**Missing Functionality (to be added in later tickets)**:
+- ⚠️ **No caching in services** - Services don't leverage cache layer yet (MM-34)
+- ⚠️ **No validation in services** - Services don't use validation layer yet (MM-35)
+- ⚠️ **No telemetry in services** - Services don't emit metrics yet (MM-36)
+- ⚠️ **No retry logic in services** - Services don't implement backoff yet (MM-36)
+
+**Note**: This ticket implements the architecture pattern. Later tickets will enhance services with missing functionality.
+
+---
+
+#### Ticket MM-34: IndexedDB Caching and Performance
+
+**Goal**: Implement comprehensive caching strategy for offline-first performance.
+
+**Scope**:
+- Build IPFS block caching in IndexedDB
+- Implement cached manifest storage
+- Create cached tag collection storage
+- Build cache pruning strategy (LRU, size limits)
+- Implement cache warmup on extension startup
+- Add cache service for centralized cache management
+- Create cache statistics and monitoring
+- Test cache performance and offline functionality
+
+**Deliverables**:
+- Complete IndexedDB caching system
+- Offline-first data access
+- Cache management with pruning
+- Performance improvements measurable
+- Offline functionality tests
+
+**Dependencies**:
+- MM-33 (Service architecture in place)
+
+**Missing Functionality (to be added in later tickets)**:
+- ⚠️ **No cache encryption** - Cached data stored in plain IndexedDB (MM-36)
+- ⚠️ **No cache validation** - Cached items not re-validated on retrieval (MM-35)
+- ⚠️ **No telemetry** - Cache hit/miss rates not tracked (MM-36)
+
+**Note**: This ticket focuses on caching infrastructure. Security hardening comes in MM-36.
+
+---
+
+#### Ticket MM-35: Content Validation and Security
+
+**Goal**: Implement comprehensive validation for all decentralized content.
+
+**Scope**:
+- Build timestamp monotonicity checks
+- Implement DID document validation (schema, signatures)
+- Validate public key match (DID public key matches IPNS publisher key)
+- Create manifest validation (structure, encryption status)
+- Build malicious content detection (size limits, format checks)
+- Implement validation service with reusable validators
+- Add fallback validation for background processes (no tweet verification)
+- Create security configuration module
+- Test all validation rules and edge cases
+
+**Deliverables**:
+- Complete validation system
+- Timestamp and signature verification
+- Content sanitization and limits
+- Security configuration
+- Comprehensive validation tests
+
+**Dependencies**:
+- MM-31 (Verification system to validate against)
+
+**Missing Functionality (to be added in later tickets)**:
+- ⚠️ **No API façade integration** - Direct IPFS calls, not through security layer (MM-36)
+- ⚠️ **No retry logic** - Validation failures not retried (MM-36)
+- ⚠️ **No telemetry** - Validation metrics not collected (MM-36)
+
+**Note**: This ticket implements validation rules. Integration with retry/telemetry comes in MM-36.
+
+---
+
+#### Ticket MM-36: Security Hardening and API Façade Integration
+
+**Goal**: Integrate with backend security façades and implement client-side validation.
+
+**Scope**:
+- Implement pubsub message validation against schemas
+- Build IPNS freshness validation with sequence tracking
+- Create exponential backoff retry logic (500ms→4s, max 5)
+- Add comprehensive error handling for façade responses (413, 415, 429, 507)
+- Implement content size pre-validation (≤1MB before API calls)
+- Build telemetry and security metrics collection
+- Add de-duplication and debounce logic for pubsub
+- Update all IPFS API calls to use security façades
+- Test error scenarios and retry logic
+
+**Deliverables**:
+- Complete security validation pipeline
+- Façade integration with error handling
+- Retry logic with backoff
+- Telemetry and metrics
+- Security hardening tests
+
+**Dependencies**:
+- MM-30 (OrbitDB integration to validate)
+- MM-35 (Validation infrastructure)
+
+**Note**: This ticket integrates all previous missing functionality. It applies security hardening, retry logic, and telemetry across all services.
+
+---
+
+#### Ticket MM-37: Minimal Backup/Restore UI
+
+**Goal**: Create user-friendly UI for backup and restore operations.
+
+**Scope**:
+- Build identity setup flow UI (create identity, enter passphrase)
+- Create identity status display component
+- Implement publish/backup button with progress feedback
+- Build restore functionality UI (lookup own handle, sync)
+- Add status indicators for all operations (publishing, restoring, syncing)
+- Create error display and user-friendly messages
+- Implement loading states and progress bars
+- Add success/failure notifications
+- Test complete user workflows in UI
+
+**Deliverables**:
+- Complete identity management UI
+- Backup/restore UI flows
+- Status and progress feedback
+- Error handling and messaging
+- User acceptance testing
+
+**Dependencies**:
+- MM-29 (Publishing)
+- MM-32 (Restoration)
+- MM-31 (Verification)
+
+**Missing Functionality (to be added in later tickets)**:
+- ⚠️ **Limited validation feedback** - UI doesn't show all validation errors until MM-35 complete
+- ⚠️ **No performance metrics** - UI doesn't show cache hit rates until MM-34 complete
+
+**Note**: UI is functional but will be enhanced with better feedback as backend capabilities improve.
+
+---
+
+### Epic 2: Full Publishing and Subscription Platform
+
+This section will contain implementation tickets for Epic 2 once Epic 1 is completed. Epic 2 will focus on:
+
+- Public vs. private manifest options
+- Subscription management for other users
+- Discovery interface with enhanced UI
+- Social features and tag sharing
+- Content script enhancements for verified identities
+- Performance optimizations
+
+**Tickets to be defined after Epic 1 completion.**
