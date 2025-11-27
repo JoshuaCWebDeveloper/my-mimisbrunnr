@@ -94,11 +94,10 @@ export class TagRepository {
     async upsert(tagUpsert: CreateTag | Tag): Promise<Tag> {
         const store = await this.getStore();
 
-        // convert to tag
-        const tag = tagUpsert as Tag;
-        if (!tag.id) {
-            tag.id = crypto.randomUUID();
-        }
+        // convert to tag safely
+        const tag: Tag = 'id' in tagUpsert && tagUpsert.id
+            ? tagUpsert as Tag
+            : { ...tagUpsert, id: crypto.randomUUID() };
 
         const request = store.put(tag);
 
