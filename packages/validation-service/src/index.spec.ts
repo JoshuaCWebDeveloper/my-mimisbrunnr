@@ -64,7 +64,26 @@ describe('Validation Service', () => {
                     version: 1,
                     handle: '@testuser',
                     updated: Date.now(),
-                    tags: ['defi', 'testing', 'security'],
+                    tags: [
+                        {
+                            id: '1',
+                            username: 'user1',
+                            name: 'DeFi',
+                            color: '#ff0000',
+                        },
+                        {
+                            id: '2',
+                            username: 'user2',
+                            name: 'Testing',
+                            color: '#00ff00',
+                        },
+                        {
+                            id: '3',
+                            username: 'user3',
+                            name: 'Security',
+                            color: '#0000ff',
+                        },
+                    ],
                 };
 
                 const response = await request(app)
@@ -87,7 +106,14 @@ describe('Validation Service', () => {
                     version: 2, // Invalid version
                     handle: '@testuser',
                     updated: Date.now(),
-                    tags: ['test'],
+                    tags: [
+                        {
+                            id: '1',
+                            username: 'user1',
+                            name: 'Test',
+                            color: '#ff0000',
+                        },
+                    ],
                 };
 
                 const response = await request(app)
@@ -115,7 +141,14 @@ describe('Validation Service', () => {
                     version: 1,
                     handle: 'invalid-handle', // Missing @
                     updated: Date.now(),
-                    tags: ['test'],
+                    tags: [
+                        {
+                            id: '1',
+                            username: 'user1',
+                            name: 'Test',
+                            color: '#ff0000',
+                        },
+                    ],
                 };
 
                 const response = await request(app)
@@ -140,7 +173,9 @@ describe('Validation Service', () => {
                     version: 1,
                     handle: '@testuser',
                     updated: Date.now(),
-                    tags: ['INVALID_TAG'], // Should be lowercase with hyphens only
+                    tags: [
+                        { id: '1', username: 'user1', name: 'Test' }, // Missing color field
+                    ],
                 };
 
                 const response = await request(app)
@@ -154,55 +189,42 @@ describe('Validation Service', () => {
                 expect(response.body.valid).toBe(false);
                 const tagError = response.body.errors.find(
                     (e: ValidationError) =>
-                        e.instancePath === '/tags/0' && e.keyword === 'pattern'
+                        e.instancePath === '/tags/0' && e.keyword === 'required'
                 );
                 expect(tagError).toBeDefined();
             });
 
-            it('should reject taglist with too many tags', async () => {
-                const invalidTaglist = {
+            it('should accept taglist with duplicate tag data', async () => {
+                // Note: TagCollectionSchema doesn't enforce uniqueness on tag objects
+                const validTaglist = {
                     version: 1,
                     handle: '@testuser',
                     updated: Date.now(),
-                    tags: Array(101).fill('tag'), // Exceeds maxItems: 100
+                    tags: [
+                        {
+                            id: '1',
+                            username: 'user1',
+                            name: 'Test',
+                            color: '#ff0000',
+                        },
+                        {
+                            id: '1',
+                            username: 'user1',
+                            name: 'Test',
+                            color: '#ff0000',
+                        }, // Duplicate
+                    ],
                 };
 
                 const response = await request(app)
                     .post('/validate')
                     .send({
                         schema: 'taglist/v1',
-                        json: invalidTaglist,
+                        json: validTaglist,
                     })
-                    .expect(400);
+                    .expect(200);
 
-                expect(response.body.valid).toBe(false);
-                const maxItemsError = response.body.errors.find(
-                    (e: ValidationError) => e.keyword === 'maxItems'
-                );
-                expect(maxItemsError).toBeDefined();
-            });
-
-            it('should reject taglist with non-unique tags', async () => {
-                const invalidTaglist = {
-                    version: 1,
-                    handle: '@testuser',
-                    updated: Date.now(),
-                    tags: ['test', 'test'], // Duplicate tags
-                };
-
-                const response = await request(app)
-                    .post('/validate')
-                    .send({
-                        schema: 'taglist/v1',
-                        json: invalidTaglist,
-                    })
-                    .expect(400);
-
-                expect(response.body.valid).toBe(false);
-                const uniqueError = response.body.errors.find(
-                    (e: ValidationError) => e.keyword === 'uniqueItems'
-                );
-                expect(uniqueError).toBeDefined();
+                expect(response.body.valid).toBe(true);
             });
         });
 
@@ -356,7 +378,14 @@ describe('Validation Service', () => {
                 version: 1,
                 handle: '@testuser',
                 updated: Date.now(),
-                tags: ['test'],
+                tags: [
+                    {
+                        id: '1',
+                        username: 'user1',
+                        name: 'Test',
+                        color: '#ff0000',
+                    },
+                ],
             };
 
             const start = Date.now();

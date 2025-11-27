@@ -1,7 +1,7 @@
 import { useMutation } from '@tanstack/react-query';
 import { useCallback } from 'react';
 import { styled } from 'styled-components';
-import { CreateTag } from '../../../../messenger.js';
+import type { CreateTag, Tag } from '@my-mimisbrunnr/protocol';
 import { useTagManager } from '../context/tag-manager.js';
 
 const StyledForm = styled.form`
@@ -265,7 +265,7 @@ const StyledForm = styled.form`
 
 const defaultColor = '#1d9bf0';
 
-export type TagValue = Partial<CreateTag>;
+export type TagValue = Partial<Tag>;
 
 export interface AddTagProps {
     value: TagValue;

@@ -6,6 +6,8 @@
   ],
   "cSpell.words": [
     "Avenir",
+    "cbor",
+    "DAGJSON",
     "dockerconfigjson",
     "hardline",
     "helia",
@@ -21,6 +23,7 @@
     "orbitdb",
     "pdoc",
     "QUIC",
+    "resty",
     "taglist",
     "xcom"
   ],

@@ -1,4 +1,4 @@
-import { CreateTag, Tag } from '../../messenger.js';
+import type { CreateTag, Tag } from '@my-mimisbrunnr/protocol';
 
 enum IndexName {
     Username = 'username_idx',
@@ -91,12 +91,14 @@ export class TagRepository {
         return tag;
     }
 
-    async upsert(tag: CreateTag | Tag): Promise<Tag> {
+    async upsert(tagUpsert: CreateTag | Tag): Promise<Tag> {
         const store = await this.getStore();
 
-        if (!tag.id) {
-            tag.id = crypto.randomUUID();
-        }
+        // convert to tag safely
+        const tag: Tag =
+            'id' in tagUpsert && tagUpsert.id
+                ? (tagUpsert as Tag)
+                : { ...tagUpsert, id: crypto.randomUUID() };
 
         const request = store.put(tag);
 
@@ -111,5 +113,45 @@ export class TagRepository {
         const request = store.delete(id);
 
         await this.waitFor(request);
+    }
+
+    async clear(): Promise<void> {
+        const store = await this.getStore();
+
+        const request = store.clear();
+
+        await this.waitFor(request);
+    }
+
+    async importTags(
+        tags: CreateTag[],
+        mode: 'merge' | 'overwrite'
+    ): Promise<{ imported: number; total: number }> {
+        if (mode === 'overwrite') {
+            // Clear all existing tags
+            await this.clear();
+        }
+
+        // Get existing tags for merge mode
+        const existingTags = mode === 'merge' ? await this.list() : [];
+        const existingTagKeys = new Set(
+            existingTags.map(t => `${t.username}:${t.name}`.toLowerCase())
+        );
+
+        let imported = 0;
+
+        for (const tag of tags) {
+            const tagKey = `${tag.username}:${tag.name}`.toLowerCase();
+
+            // Skip duplicates in merge mode
+            if (mode === 'merge' && existingTagKeys.has(tagKey)) {
+                continue;
+            }
+
+            await this.upsert(tag);
+            imported++;
+        }
+
+        return { imported, total: tags.length };
     }
 }

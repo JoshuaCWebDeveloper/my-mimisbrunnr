@@ -34,6 +34,48 @@ The extension uses a feature-based service architecture where each service owns 
 3. **Feature Organization**: Files are organized by feature/function rather than by technical layer
 4. **Clear Boundaries**: Each service encapsulates its business logic and data access patterns
 
+### Perpetual Node Connection Architecture
+
+The extension establishes two types of connections to the perpetual node (the composite system of Kubo, orbitdb-service, validation-proxy, and validation-service):
+
+#### Connection #1: libp2p Swarm for OrbitDB Replication
+
+**Protocol:** libp2p via WebTransport
+**Target:** Kubo's libp2p node (through validation-proxy)
+**Purpose:** Enables OrbitDB pubsub replication between extension and orbitdb-service, Bitswap block exchange, and DHT content discovery
+**Implementation:** `await helia.libp2p.dial(kuboMultiaddr)` where both extension and orbitdb-service connect to Kubo as libp2p peers, with Kubo acting as the pubsub hub relaying OrbitDB replication messages
+
+#### Connection #2: HTTP API for IPFS Operations
+
+**Protocol:** HTTP/HTTPS
+**Target:** Kubo's HTTP RPC API (through validation-proxy port 5001)
+**Purpose:** Pin content (`/api/v0/pin/add`) and publish IPNS records (`/api/v0/name/publish`) for persistent storage and mutable addressing
+**Implementation:** Use `kubo-rpc-client` library to communicate with Kubo's HTTP RPC API through validation-proxy security façades
+
+**Example:**
+
+```typescript
+import { create } from 'kubo-rpc-client';
+
+const kuboClient = create({
+    url: 'http://localhost:5001', // validation-proxy endpoint
+});
+
+// Pin content
+await kuboClient.pin.add(cid);
+
+// Publish IPNS record
+await kuboClient.name.publish(`/ipfs/${cid}`);
+```
+
+**Architecture Flow:**
+
+```
+Extension (Helia + OrbitDB)
+    ├─ Connection #1: libp2p/WebTransport → validation-proxy → Kubo libp2p ← orbitdb-service
+    └─ Connection #2: HTTP API → validation-proxy:5001 → Kubo HTTP API
+```
+
 ### Implementation Structure
 
 The actual implementation uses a feature-based services architecture detailed in the [Feature-Based Service Architecture](#feature-based-service-architecture) section below.
@@ -157,9 +199,10 @@ This implementation is organized into two major epics that build upon each other
 
 **IPFS Integration:**
 
--   Set up in-browser IPFS instance using `ipfs-core`
+-   Set up Helia IPFS client in browser extension for content operations and OrbitDB
+-   Establish libp2p connection to Kubo via WebTransport (through validation-proxy) for OrbitDB pubsub
+-   Configure kubo-rpc-client for HTTP API operations (pinning, IPNS) through validation-proxy
 -   Implement basic content publishing and retrieval
--   Create connection to perpetual node for improved connectivity
 -   Build basic block caching with IndexedDB
 
 #### Phase 1.2: Publishing System
@@ -174,7 +217,8 @@ This implementation is organized into two major epics that build upon each other
 
 **Discovery Infrastructure:**
 
--   Set up OrbitDB log store connection
+-   Initialize OrbitDB instance using Helia connection from IPFS Integration phase
+-   Open discovery log database with pubsub replication to orbitdb-service via Kubo
 -   Implement discovery record creation and validation
 -   Build handle-to-DID lookup functionality
 -   Create lookup key generation (SHA-256 of lowercase handle)
@@ -302,8 +346,14 @@ This implementation is organized into two major epics that build upon each other
 ```json
 {
     "dependencies": {
-        "ipfs-core": "^0.18.1",
-        "orbit-db": "^0.29.1",
+        "helia": "^4.0.0",
+        "@helia/json": "^3.0.0",
+        "kubo-rpc-client": "^5.0.0",
+        "@orbitdb/core": "^2.0.0",
+        "blockstore-core": "^4.0.0",
+        "datastore-core": "^9.0.0",
+        "@libp2p/websockets": "^8.0.0",
+        "@multiformats/multiaddr": "^12.0.0",
         "scrypt-js": "^3.0.1",
         "@noble/hashes": "^1.3.1",
         "@noble/ed25519": "^1.7.1",
@@ -358,7 +408,8 @@ This implementation is organized into two major epics that build upon each other
 -   DecentralizedSyncService must integrate both validators
 -   Background sync operations use IPNS validator for freshness checks
 -   Pubsub message handlers use PubsubMessageValidator for all incoming messages
--   All API calls to perpetual node must go through security façades
+-   All HTTP API calls (pinning, IPNS) must go through validation-proxy security façades at port 5001
+-   libp2p connection for OrbitDB pubsub must be routed through validation-proxy using WebTransport
 
 **Error Handling Implementation:**
 
@@ -672,7 +723,7 @@ See: [`background-script.ts`](./background-script.ts) - Enhanced background scri
 -   DecentralizedSyncService coordinates complex cross-service workflows
 -   Add new message types while maintaining existing ones
 -   Initialize decentralized services on background script startup
--   Manage IPFS/OrbitDB connections lifecycle
+-   Manage Helia/OrbitDB connections lifecycle (libp2p via WebTransport, HTTP API calls)
 
 ### 2. Content Script Extensions (`src/entrypoints/content/`)
 
@@ -724,10 +775,11 @@ See: [`popup-ui.tsx`](./popup-ui.tsx) - Enhanced popup app structure with decent
 
 ### 3. Network Security
 
--   Use HTTPS for all external API calls
+-   All HTTP API calls to Kubo must route through validation-proxy security façades
+-   libp2p connection to Kubo must use WebTransport through validation-proxy
 -   Implement rate limiting on all network operations
--   Validate perpetual node certificates
 -   Use content addressing for tamper detection
+-   Validate all incoming pubsub messages and IPNS records
 
 ## Deployment and Migration Strategy
 
@@ -787,9 +839,10 @@ See: [`popup-ui.tsx`](./popup-ui.tsx) - Enhanced popup app structure with decent
 
 ### 2. Performance Considerations
 
--   IPFS node initialization and connection time
--   OrbitDB replication and sync performance
--   IndexedDB storage and retrieval performance
+-   Helia initialization and libp2p connection establishment time
+-   WebTransport connection to Kubo through validation-proxy
+-   OrbitDB replication and sync performance via pubsub
+-   IndexedDB storage and retrieval performance for block caching
 -   Content script DOM processing impact
 
 ### 3. Network Resilience
@@ -864,16 +917,18 @@ This section breaks down Epic 1 into concrete implementation tickets that can be
 
 #### Ticket MM-27: POC - Basic IPFS Publish and Retrieve
 
-**Goal**: Establish that the extension can successfully communicate with IPFS by publishing and retrieving tag collections.
+**Goal**: Establish that the extension can successfully communicate with the perpetual node by publishing and retrieving tag collections.
 
 **Scope**:
 
--   Add required dependencies (Helia, crypto libraries)
+-   Add required dependencies (Helia, kubo-rpc-client, OrbitDB, crypto libraries)
 -   Create minimal data structures (TagCollection interface)
--   Set up Helia IPFS client in background script
--   Connect to perpetual node for improved DHT and pubsub reachability
--   Implement basic publish flow: current tags → IPFS
--   Implement basic retrieve flow: CID → tags
+-   Set up Helia IPFS client in background script with WebTransport libp2p configuration
+-   Establish libp2p connection to Kubo via WebTransport (through validation-proxy) for OrbitDB pubsub foundation
+-   Configure kubo-rpc-client to connect to validation-proxy HTTP API (port 5001)
+-   Implement basic publish flow: current tags → Helia → IPFS
+-   Optionally pin content via kubo-rpc-client for persistence testing
+-   Implement basic retrieve flow: CID → tags (via Bitswap through libp2p connection)
 -   Add minimal UI to trigger publish and display CID
 -   Test end-to-end: publish → get CID → retrieve by CID
 
@@ -952,7 +1007,8 @@ This section breaks down Epic 1 into concrete implementation tickets that can be
 -   Extend data structures (UserManifest, EncryptedManifest, DIDDocument)
 -   Implement DID document generation with service endpoints
 -   Build encrypted manifest wrapper creation
--   Create IPNS publishing workflow using identity keys
+-   Create IPNS publishing workflow using kubo-rpc-client to call validation-proxy HTTP API
+-   Implement content pinning via kubo-rpc-client for DID documents and manifests
 -   Implement publishing service coordinating encryption + IPFS operations
 -   Implement manifest update workflow (update DID doc service endpoint, IPNS republish)
 -   Update background script to integrate publishing service
@@ -992,13 +1048,15 @@ This section breaks down Epic 1 into concrete implementation tickets that can be
 
 **Scope**:
 
--   Connect to backend OrbitDB service (orbitdb-service)
+-   Initialize OrbitDB instance in extension using existing Helia connection from MM-27
+-   Open discovery log database ('xcom-taglist-discovery') with pubsub replication enabled
 -   Implement discovery record creation (handle → IPNS/DID mapping)
 -   Build lookup key generation (SHA-256 of lowercase handle)
--   Create discovery service for adding/querying records
+-   Create discovery service for adding/querying records locally
 -   Implement handle-to-DID resolution flow
 -   Add discovery UI for handle lookup
 -   Test discovery workflow: publish → add discovery record → lookup by handle
+-   Verify replication with orbitdb-service via Kubo's pubsub relay
 
 **Deliverables**:
 
@@ -1010,7 +1068,8 @@ This section breaks down Epic 1 into concrete implementation tickets that can be
 **Dependencies**:
 
 -   MM-29 (Publishing implemented)
--   Backend orbitdb-service running
+-   MM-27 (libp2p connection to Kubo established)
+-   orbitdb-service running and connected to Kubo for pubsub replication
 
 **Missing Functionality (to be added in later tickets)**:
 
@@ -1224,36 +1283,57 @@ This section breaks down Epic 1 into concrete implementation tickets that can be
 
 ---
 
-#### Ticket MM-36: Security Hardening and API Façade Integration
+#### Ticket MM-36: Security Hardening and Connection Validation
 
-**Goal**: Integrate with backend security façades and implement client-side validation.
+**Goal**: Harden the perpetual node connections established in MM-27 with comprehensive validation, retry logic, and monitoring.
 
 **Scope**:
 
--   Implement pubsub message validation against schemas
+-   Implement pubsub message validation against schemas for OrbitDB replication
 -   Build IPNS freshness validation with sequence tracking
--   Create exponential backoff retry logic (500ms→4s, max 5)
--   Add comprehensive error handling for façade responses (413, 415, 429, 507)
+-   Create exponential backoff retry logic for failed operations (500ms→4s, max 5 retries)
+-   Add comprehensive error handling for validation-proxy responses (413, 415, 429, 507)
 -   Implement content size pre-validation (≤1MB before API calls)
--   Build telemetry and security metrics collection
--   Add de-duplication and debounce logic for pubsub
--   Update all IPFS API calls to use security façades
--   Test error scenarios and retry logic
+-   Build telemetry and security metrics collection for both connections
+-   Add de-duplication and debounce logic for pubsub messages
+-   Implement connection health monitoring for libp2p WebTransport connection
+-   Add retry logic for libp2p connection failures with exponential backoff
+-   Validate all HTTP API calls route through validation-proxy security façades
+-   Test error scenarios, connection failures, and retry logic
 
 **Deliverables**:
 
--   Complete security validation pipeline
--   Façade integration with error handling
--   Retry logic with backoff
--   Telemetry and metrics
--   Security hardening tests
+-   Complete security validation pipeline for both HTTP API and libp2p connections
+-   Connection health monitoring and automatic reconnection
+-   Retry logic with exponential backoff
+-   Telemetry and metrics collection
+-   Comprehensive security hardening tests
 
 **Dependencies**:
 
 -   MM-30 (OrbitDB integration to validate)
 -   MM-35 (Validation infrastructure)
 
-**Note**: This ticket integrates all previous missing functionality. It applies security hardening, retry logic, and telemetry across all services.
+**Technical Note - Connection Architecture**:
+
+MM-27 establishes the libp2p connection to Kubo via WebTransport through the validation-proxy. This ticket focuses on hardening and validating that connection:
+
+**Connection Requirements**:
+
+1. Extension uses WebTransport (not WebSocket) for libp2p connection to Kubo
+2. Connection must be routed through validation-proxy for security
+3. Both extension and orbitdb-service connect to Kubo as separate libp2p peers
+4. Kubo acts as pubsub hub, relaying OrbitDB replication messages between peers
+
+**Security Enhancements in MM-36**:
+
+-   Add connection retry logic with exponential backoff
+-   Implement connection health monitoring
+-   Add rate limiting on pubsub messages
+-   Validate all incoming OrbitDB messages against schemas
+-   Implement IPNS freshness checks with sequence number tracking
+
+**Note**: This ticket integrates all previous missing functionality. It applies security hardening, retry logic, and telemetry across all services while ensuring the WebTransport connection established in MM-27 is production-ready.
 
 ---
 
@@ -1293,6 +1373,20 @@ This section breaks down Epic 1 into concrete implementation tickets that can be
 -   ⚠️ **No performance metrics** - UI doesn't show cache hit rates until MM-34 complete
 
 **Note**: UI is functional but will be enhanced with better feedback as backend capabilities improve.
+
+#### Outstanding Bugs
+
+Procedure: Add/edit/delete a tag, publish, and then import with overwrite
+
+-   Unexpected end of data
+-   Indexdb operations take a long time to return
+-   Calling Kubo /api/v0/pin/add results in connection reset by peer
+    -   Solution: Restart validation-proxy container
+-   Kubo starts with default config (doesn't match config file in container)
+    -   Causes: "Connection closed before receiving a handshake response"
+    -   Solution: Restart kubo container
+-   Libp2p can't fetch CID
+    -   Possible reason: connection becomes disconnected on pin attempt - probably not
 
 ---
 

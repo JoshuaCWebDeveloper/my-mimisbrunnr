@@ -5,8 +5,10 @@ services:
     container_name: kubo
     restart: unless-stopped
     ports:
+      - '9001:5001' # IPFS API port
       - '4001:4001' # P2P swarm port
       - '4001:4001/udp' # QUIC
+      - '4002:4002' # WebSocket for browser connections
     environment:
       - IPFS_PROFILE=server
       - IPFS_PATH=/data/ipfs

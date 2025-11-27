@@ -1,4 +1,4 @@
-import { DiscoveryRecord, version } from './protocol.js';
+import { DiscoveryRecord } from './protocol.js';
 
 describe('protocol', () => {
     describe('DiscoveryRecord interface', () => {
@@ -65,13 +65,6 @@ describe('protocol', () => {
             expect(typeof record.createdAt).toBe('number');
             expect(typeof record.updatedAt).toBe('number');
             expect(typeof record.sig).toBe('string');
-        });
-    });
-
-    describe('version', () => {
-        it('should export the current version', () => {
-            expect(version).toBe('1.0.11');
-            expect(typeof version).toBe('string');
         });
     });
 

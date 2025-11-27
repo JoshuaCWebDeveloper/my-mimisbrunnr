@@ -1,12 +1,11 @@
 import log from 'loglevel';
-import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 import { styled } from 'styled-components';
-import { Tag } from '../../../../messenger.js';
+import type { Tag } from '@my-mimisbrunnr/protocol';
 import { getTabs } from '../../../../runtime.js';
-import { useTagManager } from '../context/tag-manager.js';
 import { AddTag, TagValue } from './add-tag.js';
 import { TagList } from './tag-list.js';
+import { useListTags } from '../queries/tags.js';
 
 // Styled Components
 const StyledTagManager = styled.div`
@@ -144,17 +143,7 @@ export const TagManager = () => {
     const [activeTag, setActiveTag] = useState<TagValue>({});
     const [isOnX, setIsOnX] = useState<boolean | null>(null);
 
-    const tagManager = useTagManager();
-
-    const {
-        data: tags,
-        isLoading,
-        error,
-        refetch,
-    } = useQuery({
-        queryKey: ['tags'],
-        queryFn: () => tagManager.list(),
-    });
+    const { data: tags, isLoading, error, refetch } = useListTags();
 
     const checkIfOnX = useCallback(async () => {
         try {
