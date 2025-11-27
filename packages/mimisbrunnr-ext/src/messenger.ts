@@ -67,7 +67,7 @@ export type Message<T extends MessageType = MessageType> =
         ? {
               type: T;
               body: { cid: string };
-              response: { tags: CreateTag[] };
+              response: { tags: Tag[] };
           }
         : T extends MessageType.IMPORT_FROM_IPFS
         ? {

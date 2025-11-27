@@ -19,13 +19,12 @@ export default defineBackground(() => {
 
     initDevtools(ipfsService);
 
-    // Connection #1: libp2p WebTransport multiaddr for Bitswap block exchange
-    // Connects to Kubo through validation-proxy's WebTransport/UDP stream proxy (port 4001/udp)
-    // validation-proxy transparently proxies UDP traffic to Kubo's WebTransport endpoint
+    // Connection #1: libp2p WebSocket multiaddr for Bitswap block exchange
+    // Connects to Kubo through validation-proxy's WebSocket stream proxy (port 4002/ws)
+    // validation-proxy transparently proxies UDP traffic to Kubo's WebSocket endpoint
     // Get Kubo's peer ID: docker exec kubo ipfs id -f "<id>"
-    // Get Kubo's certhashes: docker exec kubo ipfs swarm addrs local | grep webtransport | grep 127.0.0.1
-    // Format: /ip4/127.0.0.1/udp/4001/quic-v1/webtransport/certhash/{hash1}/certhash/{hash2}/p2p/{kubo-peerId}
-    // NOTE: Uses Kubo's certhashes since validation-proxy transparently proxies UDP (doesn't terminate TLS)
+    // Get Kubo's WebSocket multiaddr: docker exec kubo ipfs swarm addrs local | grep ws | grep 127.0.0.1
+    // Format: /ip4/127.0.0.1/tcp/4002/ws/p2p/{kubo-peerId}
     const PERPETUAL_NODE_MULTIADDR =
         '/ip4/127.0.0.1/tcp/4002/ws/p2p/12D3KooWFUFJMaov3MJ7ibq46vYdZq4HLbhXvujtmmR4r3ijVNts';
     // Connection #2: HTTP API URL for kubo-rpc-client (pinning operations)

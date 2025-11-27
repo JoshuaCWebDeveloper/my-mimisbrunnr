@@ -95,9 +95,10 @@ export class TagRepository {
         const store = await this.getStore();
 
         // convert to tag safely
-        const tag: Tag = 'id' in tagUpsert && tagUpsert.id
-            ? tagUpsert as Tag
-            : { ...tagUpsert, id: crypto.randomUUID() };
+        const tag: Tag =
+            'id' in tagUpsert && tagUpsert.id
+                ? (tagUpsert as Tag)
+                : { ...tagUpsert, id: crypto.randomUUID() };
 
         const request = store.put(tag);
 
