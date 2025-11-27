@@ -3,6 +3,8 @@ import Ajv, { ValidateFunction } from 'ajv';
 import addFormats from 'ajv-formats';
 import { createServer } from 'http';
 import log from 'loglevel';
+import * as z from 'zod';
+import { TagCollectionSchema } from '@my-mimisbrunnr/protocol';
 
 // Configure logging
 log.setLevel((process.env.LOG_LEVEL as log.LogLevelDesc) || 'info');
@@ -19,38 +21,12 @@ const ajv = new Ajv.default({
 addFormats.default(ajv);
 
 // Schema definitions for security validation
+// Convert Zod schemas from @my-mimisbrunnr/protocol to JSON Schema for AJV validation
+// Using Zod's native z.toJSONSchema() for conversion (Zod 4+)
 const schemas = {
-    'taglist/v1': {
-        type: 'object',
-        required: ['version', 'handle', 'updated', 'tags'],
-        properties: {
-            version: { const: 1 },
-            handle: {
-                type: 'string',
-                pattern: '^@[a-zA-Z0-9_]{1,15}$',
-                minLength: 2,
-                maxLength: 16,
-            },
-            updated: {
-                type: 'number',
-                minimum: 1,
-                maximum: 9999999999999, // Reasonable timestamp limit
-            },
-            tags: {
-                type: 'array',
-                items: {
-                    type: 'string',
-                    pattern: '^[a-z0-9-]+$',
-                    minLength: 1,
-                    maxLength: 50,
-                },
-                minItems: 0,
-                maxItems: 100,
-                uniqueItems: true,
-            },
-        },
-        additionalProperties: false,
-    },
+    'taglist/v1': z.toJSONSchema(TagCollectionSchema, {
+        target: 'draft-7', // AJV uses JSON Schema Draft 7 by default
+    }),
 
     'pubsub/head/v1': {
         type: 'object',

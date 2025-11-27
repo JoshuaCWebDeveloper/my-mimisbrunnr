@@ -1,5 +1,6 @@
 import log from 'loglevel';
-import { MessageType, Messenger, type Tag } from '../../messenger.js';
+import { MessageType, Messenger } from '../../messenger.js';
+import type { Tag } from '@my-mimisbrunnr/protocol';
 import { XComSelectors } from './xcom-selectors.js';
 
 /**

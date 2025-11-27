@@ -12,7 +12,11 @@
     "lib": ["es2022", "dom", "dom.iterable"]
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", ".wxt/types"],
-  "references": [],
+  "references": [
+    {
+      "path": "../shared/protocol/tsconfig.lib.json"
+    }
+  ],
   "exclude": [
     "vite.config.ts",
     "vite.config.mts",

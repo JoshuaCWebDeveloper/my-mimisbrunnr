@@ -3,7 +3,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { useMutation } from '@tanstack/react-query';
 import { useState, useMemo } from 'react';
 import { styled } from 'styled-components';
-import { Tag } from '../../../../messenger.js';
+import type { Tag } from '@my-mimisbrunnr/protocol';
 import { useTagManager } from '../context/tag-manager.js';
 import { ConfirmableDelete } from './shared/confirmable-delete.js';
 

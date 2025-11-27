@@ -1,15 +1,5 @@
 import { getRuntime, getTabs } from './runtime.js';
-
-export type Tag = {
-    id: string;
-    username: string;
-    name: string;
-    color: string;
-};
-
-export type CreateTag = Omit<Tag, 'id'> & {
-    id?: string;
-};
+import type { Tag, CreateTag } from '@my-mimisbrunnr/protocol';
 
 export enum MessageType {
     LIST_TAGS = 'LIST_TAGS',

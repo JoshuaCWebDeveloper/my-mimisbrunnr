@@ -1,4 +1,4 @@
-import { CreateTag, Tag } from '../../messenger.js';
+import type { CreateTag, Tag } from '@my-mimisbrunnr/protocol';
 
 enum IndexName {
     Username = 'username_idx',
@@ -91,9 +91,11 @@ export class TagRepository {
         return tag;
     }
 
-    async upsert(tag: CreateTag | Tag): Promise<Tag> {
+    async upsert(tagUpsert: CreateTag | Tag): Promise<Tag> {
         const store = await this.getStore();
 
+        // convert to tag
+        const tag = tagUpsert as Tag;
         if (!tag.id) {
             tag.id = crypto.randomUUID();
         }

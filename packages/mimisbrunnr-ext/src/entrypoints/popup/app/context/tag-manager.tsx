@@ -1,11 +1,7 @@
+import type { CreateTag, Tag } from '@my-mimisbrunnr/protocol';
 import { createContext, useContext, useRef } from 'react';
+import { MessageType, Messenger } from '../../../../messenger.js';
 import { useMessenger } from './messenger.js';
-import {
-    CreateTag,
-    MessageType,
-    Messenger,
-    Tag,
-} from '../../../../messenger.js';
 
 export class TagManager {
     constructor(private readonly messenger: Messenger) {}
