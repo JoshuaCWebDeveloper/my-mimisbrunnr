@@ -114,4 +114,44 @@ export class TagRepository {
 
         await this.waitFor(request);
     }
+
+    async clear(): Promise<void> {
+        const store = await this.getStore();
+
+        const request = store.clear();
+
+        await this.waitFor(request);
+    }
+
+    async importTags(
+        tags: CreateTag[],
+        mode: 'merge' | 'overwrite'
+    ): Promise<{ imported: number; total: number }> {
+        if (mode === 'overwrite') {
+            // Clear all existing tags
+            await this.clear();
+        }
+
+        // Get existing tags for merge mode
+        const existingTags = mode === 'merge' ? await this.list() : [];
+        const existingTagKeys = new Set(
+            existingTags.map(t => `${t.username}:${t.name}`.toLowerCase())
+        );
+
+        let imported = 0;
+
+        for (const tag of tags) {
+            const tagKey = `${tag.username}:${tag.name}`.toLowerCase();
+
+            // Skip duplicates in merge mode
+            if (mode === 'merge' && existingTagKeys.has(tagKey)) {
+                continue;
+            }
+
+            await this.upsert(tag);
+            imported++;
+        }
+
+        return { imported, total: tags.length };
+    }
 }

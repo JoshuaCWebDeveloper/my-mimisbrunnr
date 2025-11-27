@@ -8,6 +8,10 @@ export enum MessageType {
     SAVE_TAG = 'SAVE_TAG',
     DELETE_TAG = 'DELETE_TAG',
     REFRESH_TAGS = 'REFRESH_TAGS',
+    // IPFS operations
+    PUBLISH_TO_IPFS = 'PUBLISH_TO_IPFS',
+    RETRIEVE_FROM_IPFS = 'RETRIEVE_FROM_IPFS',
+    IMPORT_FROM_IPFS = 'IMPORT_FROM_IPFS',
 }
 
 export type MessageError = {
@@ -52,6 +56,24 @@ export type Message<T extends MessageType = MessageType> =
               type: T;
               body: never;
               response: void;
+          }
+        : T extends MessageType.PUBLISH_TO_IPFS
+        ? {
+              type: T;
+              body: never;
+              response: { cid: string };
+          }
+        : T extends MessageType.RETRIEVE_FROM_IPFS
+        ? {
+              type: T;
+              body: { cid: string };
+              response: { tags: CreateTag[] };
+          }
+        : T extends MessageType.IMPORT_FROM_IPFS
+        ? {
+              type: T;
+              body: { cid: string; mode: 'merge' | 'overwrite' };
+              response: { imported: number; total: number };
           }
         : never;
 

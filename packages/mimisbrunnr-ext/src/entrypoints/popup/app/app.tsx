@@ -1,5 +1,6 @@
 import { styled } from 'styled-components';
 import { TagManager } from './components/tag-manager.js';
+import { IpfsPublisher } from './components/publish/ipfs-publisher.js';
 import themes from './themes.js';
 
 const Theme = themes.default;
@@ -176,6 +177,7 @@ export const App = () => {
 
             <StyledMain>
                 <TagManager />
+                <IpfsPublisher />
             </StyledMain>
         </StyledApp>
     );
