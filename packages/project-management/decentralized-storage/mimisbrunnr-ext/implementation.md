@@ -53,21 +53,23 @@ The extension establishes two types of connections to the perpetual node (the co
 **Implementation:** Use `kubo-rpc-client` library to communicate with Kubo's HTTP RPC API through validation-proxy security façades
 
 **Example:**
+
 ```typescript
-import { create } from 'kubo-rpc-client'
+import { create } from 'kubo-rpc-client';
 
 const kuboClient = create({
-    url: 'http://localhost:5001' // validation-proxy endpoint
-})
+    url: 'http://localhost:5001', // validation-proxy endpoint
+});
 
 // Pin content
-await kuboClient.pin.add(cid)
+await kuboClient.pin.add(cid);
 
 // Publish IPNS record
-await kuboClient.name.publish(`/ipfs/${cid}`)
+await kuboClient.name.publish(`/ipfs/${cid}`);
 ```
 
 **Architecture Flow:**
+
 ```
 Extension (Helia + OrbitDB)
     ├─ Connection #1: libp2p/WebTransport → validation-proxy → Kubo libp2p ← orbitdb-service
@@ -1317,17 +1319,19 @@ This section breaks down Epic 1 into concrete implementation tickets that can be
 MM-27 establishes the libp2p connection to Kubo via WebTransport through the validation-proxy. This ticket focuses on hardening and validating that connection:
 
 **Connection Requirements**:
+
 1. Extension uses WebTransport (not WebSocket) for libp2p connection to Kubo
 2. Connection must be routed through validation-proxy for security
 3. Both extension and orbitdb-service connect to Kubo as separate libp2p peers
 4. Kubo acts as pubsub hub, relaying OrbitDB replication messages between peers
 
 **Security Enhancements in MM-36**:
-- Add connection retry logic with exponential backoff
-- Implement connection health monitoring
-- Add rate limiting on pubsub messages
-- Validate all incoming OrbitDB messages against schemas
-- Implement IPNS freshness checks with sequence number tracking
+
+-   Add connection retry logic with exponential backoff
+-   Implement connection health monitoring
+-   Add rate limiting on pubsub messages
+-   Validate all incoming OrbitDB messages against schemas
+-   Implement IPNS freshness checks with sequence number tracking
 
 **Note**: This ticket integrates all previous missing functionality. It applies security hardening, retry logic, and telemetry across all services while ensuring the WebTransport connection established in MM-27 is production-ready.
 
@@ -1369,6 +1373,20 @@ MM-27 establishes the libp2p connection to Kubo via WebTransport through the val
 -   ⚠️ **No performance metrics** - UI doesn't show cache hit rates until MM-34 complete
 
 **Note**: UI is functional but will be enhanced with better feedback as backend capabilities improve.
+
+#### Outstanding Bugs
+
+Procedure: Add/edit/delete a tag, publish, and then import with overwrite
+
+-   Unexpected end of data
+-   Indexdb operations take a long time to return
+-   Calling Kubo /api/v0/pin/add results in connection reset by peer
+    -   Solution: Restart validation-proxy container
+-   Kubo starts with default config (doesn't match config file in container)
+    -   Causes: "Connection closed before receiving a handshake response"
+    -   Solution: Restart kubo container
+-   Libp2p can't fetch CID
+    -   Possible reason: connection becomes disconnected on pin attempt - probably not
 
 ---
 
