@@ -17,6 +17,7 @@
     "managedidentity",
     "mimis",
     "mimisbrunnr",
+    "nacl",
     "ncipollo",
     "nodelay",
     "operationalinsights",
@@ -24,6 +25,7 @@
     "pdoc",
     "QUIC",
     "resty",
+    "secretbox",
     "taglist",
     "xcom"
   ],

@@ -1,9 +1,9 @@
 import log from 'loglevel';
 import { MessageType, Messenger } from '../../messenger.js';
-import { TagRepository } from './tag-repository.js';
-import { IpfsService } from './ipfs-service.js';
-import type { TagCollection } from '@my-mimisbrunnr/protocol';
 import { initDevtools } from './devtools.js';
+import { IpfsService } from './ipfs/ipfs-service.js';
+import { TagService } from './tag/tag-service.js';
+import { IdentityService } from './identity/identity-service.js';
 
 log.setLevel('debug');
 
@@ -12,10 +12,12 @@ export default defineBackground(() => {
 
     const messenger = new Messenger();
 
-    const tagRepository = new TagRepository();
-
     // Initialize IPFS service (MM-27)
     const ipfsService = new IpfsService();
+
+    const identityService = new IdentityService();
+
+    const tagService = new TagService(ipfsService, identityService);
 
     initDevtools(ipfsService);
 
@@ -43,19 +45,19 @@ export default defineBackground(() => {
             try {
                 switch (message.type) {
                     case MessageType.LIST_TAGS: {
-                        const tags = await tagRepository.list();
+                        const tags = await tagService.list();
                         sendResponse<MessageType.LIST_TAGS>(tags);
                         break;
                     }
                     case MessageType.LIST_TAGS_BY_USERNAME: {
-                        const tags = await tagRepository.listByUsername(
+                        const tags = await tagService.listByUsername(
                             message.body.username
                         );
                         sendResponse<MessageType.LIST_TAGS_BY_USERNAME>(tags);
                         break;
                     }
                     case MessageType.SAVE_TAG: {
-                        const newTag = await tagRepository.upsert(message.body);
+                        const newTag = await tagService.upsert(message.body);
 
                         // Notify content script to refresh tags
                         messenger.sendMessageToTabs(MessageType.REFRESH_TAGS);
@@ -64,7 +66,7 @@ export default defineBackground(() => {
                         break;
                     }
                     case MessageType.DELETE_TAG: {
-                        await tagRepository.delete(message.body.id);
+                        await tagService.delete(message.body.id);
 
                         // Notify content script to refresh tags
                         messenger.sendMessageToTabs(MessageType.REFRESH_TAGS);
@@ -75,7 +77,7 @@ export default defineBackground(() => {
                         break;
                     }
                     case MessageType.GET_TAG: {
-                        const tag = await tagRepository.get(message.body.id);
+                        const tag = await tagService.get(message.body.id);
 
                         sendResponse<MessageType.GET_TAG>(
                             tag ?? {
@@ -85,24 +87,8 @@ export default defineBackground(() => {
                         break;
                     }
                     case MessageType.PUBLISH_TO_IPFS: {
-                        // Get all tags from repository
-                        const tags = await tagRepository.list();
-
-                        // Create TagCollection structure with full tag data
-                        // TODO(MM-28): Add encryption
-                        // TODO(MM-35): Add content validation
-                        const tagCollection: TagCollection = {
-                            version: 1,
-                            handle: '@unknown', // TODO(MM-28): Get from identity
-                            updated: Date.now(),
-                            tags,
-                        };
-
                         // Publish to IPFS and pin to Kubo via RPC API (Connection #2)
-                        const cid = await ipfsService.publishTagCollection(
-                            tagCollection,
-                            { pin: true } // Pin to perpetual node for persistence
-                        );
+                        const cid = await tagService.publishTagCollection();
 
                         sendResponse<MessageType.PUBLISH_TO_IPFS>({ cid });
                         break;
@@ -110,7 +96,7 @@ export default defineBackground(() => {
                     case MessageType.RETRIEVE_FROM_IPFS: {
                         // Retrieve from IPFS
                         const tagCollection =
-                            await ipfsService.retrieveTagCollection(
+                            await tagService.retrieveTagCollection(
                                 message.body.cid
                             );
 
@@ -124,25 +110,10 @@ export default defineBackground(() => {
                         break;
                     }
                     case MessageType.IMPORT_FROM_IPFS: {
-                        // Retrieve from IPFS
-                        const tagCollection =
-                            await ipfsService.retrieveTagCollection(
-                                message.body.cid
-                            );
-
-                        // Convert TagCollection to Tag array
-                        // TODO(MM-28): Add decryption
-                        // TODO(MM-35): Add content validation
-                        const tags = tagCollection.tags.map(tagEntry => ({
-                            username: tagEntry.username,
-                            name: tagEntry.name,
-                            color: tagEntry.color,
-                        }));
-
                         // Import tags into repository with specified mode
-                        const result = await tagRepository.importTags(
-                            tags,
-                            message.body.mode
+                        const result = await tagService.importTagCollection(
+                            message.body.cid,
+                            { mode: message.body.mode }
                         );
 
                         // Notify content script to refresh tags

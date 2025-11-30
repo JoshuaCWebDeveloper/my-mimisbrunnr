@@ -7,8 +7,12 @@ import {
     create as createKuboClient,
     type KuboRPCClient,
 } from 'kubo-rpc-client';
-import type { TagCollection } from '@my-mimisbrunnr/protocol';
 import { Libp2pConnection } from './libp2p-connection.js';
+import { CID } from 'multiformats/cid';
+
+export interface AddObjectOptions {
+    pin?: boolean;
+}
 
 /**
  * IPFS Service using Helia for publishing and retrieving tag collections
@@ -110,179 +114,6 @@ export class IpfsService {
     }
 
     /**
-     * Publish a tag collection to IPFS
-     *
-     * @param tagCollection - The tag collection to publish
-     * @param pin - Whether to pin the content via kubo-rpc-client (optional, default: false)
-     * @returns CID of the published content
-     *
-     * @remarks
-     * TODO(MM-28): Add encryption before publishing
-     * TODO(MM-35): Add content validation (size limits, schema validation)
-     * TODO(MM-36): Add timeout and retry logic
-     * TODO(MM-36): Add rate limiting
-     */
-    async publishTagCollection(
-        tagCollection: TagCollection,
-        { pin = false }: { pin?: boolean } = {}
-    ): Promise<string> {
-        if (!this.helia || !this.dagJsonCodec || !this.kuboClient) {
-            throw new Error('IPFS service not initialized');
-        }
-
-        try {
-            log.info('[IpfsService] Publishing tag collection:', tagCollection);
-
-            // TODO(MM-35): Validate content size (should be <= 1MB per spec)
-            // TODO(MM-35): Validate schema structure
-            // TODO(MM-28): Encrypt content before publishing
-
-            // Publish JSON to IPFS using dag-json codec
-            const cid = await this.dagJsonCodec.add(tagCollection);
-
-            log.info(
-                '[IpfsService] Tag collection published successfully:',
-                cid.toString()
-            );
-
-            // pin content via kubo-rpc-client using dag/put (Connection #2: HTTP API)
-            if (pin) {
-                await this.pinContent(cid.toString());
-
-                log.info(
-                    '[IpfsService] Content pinned via dag/put with CID verification:',
-                    cid.toString()
-                );
-            }
-
-            // TODO(MM-34): Cache published content in IndexedDB
-
-            return cid.toString();
-        } catch (error) {
-            log.error('[IpfsService] Failed to publish tag collection:', error);
-            // TODO(MM-36): Add proper error handling and user notification
-            throw error;
-        }
-    }
-
-    /**
-     * Pin content to the perpetual node via kubo-rpc-client HTTP API using dag/put
-     * This is Connection #2: HTTP API for pinning operations
-     *
-     * This method:
-     * 1. Retrieves the raw block data from Helia's blockstore
-     * 2. Uploads the block to Kubo using dag/put with pin=true
-     * 3. Verifies the returned CID matches our local CID
-     *
-     * @param cidString - CID string to pin
-     * @remarks
-     * TODO(MM-36): Add retry logic with exponential backoff
-     * TODO(MM-36): Add rate limiting
-     */
-    private async pinContent(cidString: string): Promise<void> {
-        if (!this.kuboClient || !this.helia) {
-            throw new Error('Kubo RPC client or Helia not initialized');
-        }
-
-        try {
-            log.info(
-                '[IpfsService] Pinning content to perpetual node via dag/put:',
-                cidString
-            );
-
-            const { CID } = await import('multiformats/cid');
-            const cid = CID.parse(cidString);
-
-            // Get the raw block data from Helia's blockstore
-            const blockData = await this.helia.blockstore.get(cid);
-
-            log.info(
-                '[IpfsService] Retrieved block from local blockstore:',
-                `CID: ${cidString}, Size: ${blockData.length} bytes`
-            );
-
-            // Upload block to Kubo using dag/put with pin=true
-            // The dag/put endpoint will validate content via validation-proxy
-            const remoteCid = await this.kuboClient.dag.put(blockData, {
-                storeCodec: 'dag-json',
-                inputCodec: 'dag-json',
-                pin: true,
-            });
-
-            log.info(
-                '[IpfsService] Content uploaded via dag/put:',
-                `Local CID: ${cidString}, Remote CID: ${remoteCid.toString()}`
-            );
-
-            // Verify CID matches
-            if (remoteCid.toString() !== cidString) {
-                throw new Error(
-                    `CID mismatch: local=${cidString}, remote=${remoteCid.toString()}`
-                );
-            }
-
-            log.info(
-                '[IpfsService] Content pinned successfully with verified CID:',
-                cidString
-            );
-        } catch (error) {
-            log.error('[IpfsService] Failed to pin content:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Retrieve a tag collection from IPFS by CID
-     *
-     * @param cidString - CID string of the content to retrieve
-     * @returns The retrieved tag collection
-     *
-     * @remarks
-     * TODO(MM-28): Add decryption after retrieval
-     * TODO(MM-35): Add content validation after retrieval
-     * TODO(MM-36): Add timeout and retry logic
-     * TODO(MM-34): Check cache before fetching from network
-     */
-    async retrieveTagCollection(cidString: string): Promise<TagCollection> {
-        if (!this.helia || !this.dagJsonCodec) {
-            throw new Error('IPFS service not initialized');
-        }
-
-        try {
-            log.info('[IpfsService] Retrieving tag collection:', cidString);
-
-            // TODO(MM-34): Check IndexedDB cache first
-
-            // Parse CID string
-            const { CID } = await import('multiformats/cid');
-            const cid = CID.parse(cidString);
-
-            // Retrieve JSON from IPFS using dag-json codec
-            // TODO(MM-36): Add timeout (30s as per spec)
-            const tagCollection = await this.dagJsonCodec.get(cid);
-
-            log.info(
-                '[IpfsService] Tag collection retrieved successfully:',
-                tagCollection
-            );
-
-            // TODO(MM-35): Validate retrieved content structure
-            // TODO(MM-35): Check content size limits
-            // TODO(MM-28): Decrypt content if encrypted
-            // TODO(MM-34): Cache retrieved content in IndexedDB
-
-            return tagCollection as TagCollection;
-        } catch (error) {
-            log.error(
-                '[IpfsService] Failed to retrieve tag collection:',
-                error
-            );
-            // TODO(MM-36): Add proper error handling and user notification
-            throw error;
-        }
-    }
-
-    /**
      * Shutdown the IPFS node
      *
      * @remarks
@@ -325,5 +156,167 @@ export class IpfsService {
      */
     getPeerId(): string | null {
         return this.helia?.libp2p.peerId.toString() ?? null;
+    }
+
+    /**
+     * Pin content to the perpetual node via kubo-rpc-client HTTP API using dag/put
+     * This is Connection #2: HTTP API for pinning operations
+     *
+     * This method:
+     * 1. Retrieves the raw block data from Helia's blockstore
+     * 2. Uploads the block to Kubo using dag/put with pin=true
+     * 3. Verifies the returned CID matches our local CID
+     *
+     * @param cidString - CID string to pin
+     * @remarks
+     * TODO(MM-36): Add retry logic with exponential backoff
+     * TODO(MM-36): Add rate limiting
+     */
+    private async propagateToDagJson(cidString: string): Promise<void> {
+        if (!this.kuboClient || !this.helia) {
+            throw new Error('Kubo RPC client or Helia not initialized');
+        }
+
+        try {
+            log.info(
+                '[IpfsService] Pinning content to perpetual node via dag/put:',
+                cidString
+            );
+
+            const cid = CID.parse(cidString);
+
+            // Get the raw block data from Helia's blockstore
+            const blockData = await this.helia.blockstore.get(cid);
+
+            log.info(
+                '[IpfsService] Retrieved block from local blockstore:',
+                `CID: ${cidString}, Size: ${blockData.length} bytes`
+            );
+
+            // Upload block to Kubo using dag/put with pin=true
+            // The dag/put endpoint will validate content via validation-proxy
+            const remoteCid = await this.kuboClient.dag.put(blockData, {
+                storeCodec: 'dag-json',
+                inputCodec: 'dag-json',
+                pin: true,
+            });
+
+            log.info(
+                '[IpfsService] Content uploaded via dag/put:',
+                `Local CID: ${cidString}, Remote CID: ${remoteCid.toString()}`
+            );
+
+            // Verify CID matches
+            if (remoteCid.toString() !== cidString) {
+                throw new Error(
+                    `CID mismatch: local=${cidString}, remote=${remoteCid.toString()}`
+                );
+            }
+
+            log.info(
+                '[IpfsService] Content pinned successfully with verified CID:',
+                cidString
+            );
+        } catch (error) {
+            log.error('[IpfsService] Failed to pin content:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Add an object to IPFS
+     *
+     * @param object - The object to add
+     * @param options - Options for the add operation
+     * @returns CID of the added object
+     *
+     * @remarks
+     * TODO(MM-35): Add content validation (size limits, schema validation)
+     * TODO(MM-36): Add timeout and retry logic
+     */
+    async addObject(
+        object: unknown,
+        { pin = true }: AddObjectOptions = {}
+    ): Promise<string> {
+        if (!this.helia || !this.dagJsonCodec || !this.kuboClient) {
+            throw new Error('IPFS service not initialized');
+        }
+
+        try {
+            log.info('[IpfsService] Publishing object:', object);
+
+            // TODO(MM-35): Validate content size (should be <= 1MB per spec)
+            // TODO(MM-35): Validate schema structure
+            // TODO(MM-28): Encrypt content before publishing
+
+            // Publish JSON to IPFS using dag-json codec
+            const cid = await this.dagJsonCodec.add(object);
+
+            log.info(
+                '[IpfsService] Object published successfully:',
+                cid.toString()
+            );
+
+            // pin content via kubo-rpc-client using dag/put (Connection #2: HTTP API)
+            if (pin) {
+                await this.propagateToDagJson(cid.toString());
+
+                log.info(
+                    '[IpfsService] Content pinned via dag/put with CID verification:',
+                    cid.toString()
+                );
+            }
+
+            // TODO(MM-34): Cache published content in IndexedDB
+
+            return cid.toString();
+        } catch (error) {
+            log.error('[IpfsService] Failed to publish object:', error);
+            // TODO(MM-36): Add proper error handling and user notification
+            throw error;
+        }
+    }
+
+    /**
+     * Retrieve an object from IPFS by CID
+     *
+     * @param cidString - CID string of the content to retrieve
+     * @returns The retrieved object
+     *
+     * @remarks
+     * TODO(MM-35): Add content validation after retrieval
+     * TODO(MM-36): Add timeout and retry logic
+     * TODO(MM-34): Check cache before fetching from network
+     */
+    async retrieveObject(cidString: string): Promise<unknown> {
+        if (!this.helia || !this.dagJsonCodec) {
+            throw new Error('IPFS service not initialized');
+        }
+
+        try {
+            log.info('[IpfsService] Retrieving object:', cidString);
+
+            // TODO(MM-34): Check IndexedDB cache first
+
+            // Parse CID string
+            const cid = CID.parse(cidString);
+
+            // Retrieve JSON from IPFS using dag-json codec
+            // TODO(MM-36): Add timeout (30s as per spec)
+            const object = await this.dagJsonCodec.get(cid);
+
+            log.info('[IpfsService] Object retrieved successfully:', object);
+
+            // TODO(MM-35): Validate retrieved content structure
+            // TODO(MM-35): Check content size limits
+            // TODO(MM-28): Decrypt content if encrypted
+            // TODO(MM-34): Cache retrieved content in IndexedDB
+
+            return object;
+        } catch (error) {
+            log.error('[IpfsService] Failed to retrieve object:', error);
+            // TODO(MM-36): Add proper error handling and user notification
+            throw error;
+        }
     }
 }

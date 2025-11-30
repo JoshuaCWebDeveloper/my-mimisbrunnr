@@ -1,4 +1,4 @@
-import { IpfsService } from './ipfs-service.js';
+import { IpfsService } from './ipfs/ipfs-service.js';
 import { CID } from 'multiformats/cid';
 
 class MimisbrunnrBackground {
