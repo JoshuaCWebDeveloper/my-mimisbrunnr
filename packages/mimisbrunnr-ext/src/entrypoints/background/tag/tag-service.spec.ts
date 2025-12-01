@@ -75,8 +75,8 @@ describe('TagService', () => {
         publicKey: new Uint8Array(32),
         secretKey: new Uint8Array(64),
         handle: '@testuser',
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
     };
 
     const mockTag: Tag = {
@@ -84,8 +84,8 @@ describe('TagService', () => {
         username: 'elonmusk',
         name: 'Tech CEO',
         color: '#1DA1F2',
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
     };
 
     const mockCreateTag: CreateTag = {
@@ -99,8 +99,10 @@ describe('TagService', () => {
 
         // Create service with mocked dependencies
         tagService = new TagService(mockIpfsService, mockIdentityService);
-        // @ts-expect-error - accessing private property for testing
-        tagService.tagRepository = mockTagRepository;
+        // accessing private property for testing
+        (
+            tagService as unknown as { tagRepository: TagRepository }
+        ).tagRepository = mockTagRepository;
     });
 
     describe('CRUD Operations', () => {
@@ -194,7 +196,7 @@ describe('TagService', () => {
         describe('delete', () => {
             it('should delete a tag by id', async () => {
                 // Arrange
-                mockTagRepository.delete.mockResolvedValue();
+                mockTagRepository.delete.mockResolvedValue(undefined);
 
                 // Act
                 await tagService.delete('tag-1');
@@ -307,8 +309,8 @@ describe('TagService', () => {
                 // Arrange
                 const encryptedCollection: EncryptedTagCollection = {
                     id: 'col-1',
-                    createdAt: new Date(),
-                    updatedAt: new Date(),
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
                     version: 1,
                     encrypted: true,
                     data: 'encrypted-data',
@@ -318,8 +320,8 @@ describe('TagService', () => {
 
                 const plainCollection: TagCollection = {
                     id: 'col-1',
-                    createdAt: new Date(),
-                    updatedAt: new Date(),
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
                     version: 1,
                     encrypted: false,
                     handle: '@testuser',
@@ -354,8 +356,8 @@ describe('TagService', () => {
                 // Arrange
                 const plainCollection: TagCollection = {
                     id: 'col-1',
-                    createdAt: new Date(),
-                    updatedAt: new Date(),
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
                     version: 1,
                     encrypted: false,
                     handle: '@testuser',
@@ -403,8 +405,8 @@ describe('TagService', () => {
                 // Arrange
                 const tagCollection: TagCollection = {
                     id: 'col-1',
-                    createdAt: new Date(),
-                    updatedAt: new Date(),
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
                     version: 1,
                     encrypted: false,
                     handle: '@testuser',
@@ -446,8 +448,8 @@ describe('TagService', () => {
                 // Arrange
                 const tagCollection: TagCollection = {
                     id: 'col-1',
-                    createdAt: new Date(),
-                    updatedAt: new Date(),
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
                     version: 1,
                     encrypted: false,
                     handle: '@testuser',
@@ -480,8 +482,8 @@ describe('TagService', () => {
                 // Arrange
                 const tagCollection: TagCollection = {
                     id: 'col-1',
-                    createdAt: new Date(),
-                    updatedAt: new Date(),
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
                     version: 1,
                     encrypted: false,
                     handle: '@testuser',
@@ -513,8 +515,8 @@ describe('TagService', () => {
                 const mockDid = 'did:key:z6MkTest123';
                 const tagCollection: TagCollection = {
                     id: 'col-1',
-                    createdAt: new Date(),
-                    updatedAt: new Date(),
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
                     version: 1,
                     encrypted: false,
                     handle: '@testuser',

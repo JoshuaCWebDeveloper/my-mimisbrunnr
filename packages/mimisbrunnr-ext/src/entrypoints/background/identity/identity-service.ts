@@ -64,10 +64,6 @@ export interface Identity extends Omit<DbRow, 'id'> {
     secretKey: Uint8Array;
     /** X.com handle (e.g., @alice) */
     handle: string;
-    /** Creation timestamp */
-    createdAt: number;
-    /** Last updated timestamp */
-    updatedAt: number;
 }
 
 /**
@@ -82,21 +78,17 @@ export interface Identity extends Omit<DbRow, 'id'> {
  *
  * TODO(MM-36): Add encryption-at-rest for IndexedDB (additional layer)
  */
-export interface EncryptedIdentity {
+export interface EncryptedIdentity extends Omit<DbRow, 'id'> {
     /** DID identifier (stored in plaintext for lookups) */
     did: string;
     /** X.com handle (stored in plaintext for lookups) */
     handle: string;
-    /** Encrypted identity data (base64) */
+    /** Encrypted Identity (base64) */
     encryptedData: string;
     /** Nonce for decryption (base64) */
     nonce: string;
     /** Salt for content encryption key derivation (base64) */
     contentSalt: string;
-    /** Creation timestamp */
-    createdAt: number;
-    /** Last updated timestamp */
-    updatedAt: number;
 }
 
 // ============================================================================
@@ -480,7 +472,7 @@ export class IdentityService {
 
         // Update identity object
         this.currentIdentity.handle = newHandle;
-        this.currentIdentity.updatedAt = Date.now();
+        this.currentIdentity.updatedAt = new Date().toISOString();
 
         // Re-encrypt and save
         const encryptedIdentity = await this.encryptIdentity(
@@ -513,9 +505,10 @@ export class IdentityService {
 
         // Prepare data to encrypt (without publicKey - derivable from DID)
         const dataToEncrypt = {
-            secretKey: Array.from(identity.secretKey), // Convert to array for JSON
-            createdAt: identity.createdAt,
-            updatedAt: identity.updatedAt,
+            ...identity,
+            // Convert to array for JSON
+            secretKey: Array.from(identity.secretKey),
+            publicKey: Array.from(identity.publicKey),
         };
 
         // Encrypt
@@ -554,11 +547,9 @@ export class IdentityService {
         const contentSalt = base64ToBytes(encryptedIdentity.contentSalt);
 
         // Decrypt
-        const decryptedData = await decryptContent<{
-            secretKey: number[];
-            createdAt: number;
-            updatedAt: number;
-        }>(
+        const decryptedData = await decryptContent<
+            Identity & { secretKey: number[]; publicKey: number[] }
+        >(
             encryptedIdentity.encryptedData,
             encryptedIdentity.nonce,
             passphrase,
@@ -567,19 +558,10 @@ export class IdentityService {
 
         // Reconstruct identity
         const identity: Identity = {
-            did: encryptedIdentity.did,
-            handle: encryptedIdentity.handle,
-            publicKey: new Uint8Array(0), // Will be derived from DID
+            ...decryptedData,
+            publicKey: new Uint8Array(decryptedData.publicKey),
             secretKey: new Uint8Array(decryptedData.secretKey),
-            createdAt: decryptedData.createdAt,
-            updatedAt: decryptedData.updatedAt,
         };
-
-        // Derive public key from DID (could also extract from secretKey)
-        // For now, we'll derive it from the secret key
-        const nacl = await import('tweetnacl');
-        const keypair = nacl.sign.keyPair.fromSecretKey(identity.secretKey);
-        identity.publicKey = keypair.publicKey;
 
         return identity;
     }

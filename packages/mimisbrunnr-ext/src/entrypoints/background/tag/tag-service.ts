@@ -9,6 +9,7 @@ import {
     type Tag,
     type TagCollection,
     type CreateTag,
+    createDbRow,
 } from '@my-mimisbrunnr/protocol';
 import log from 'loglevel';
 import type { IdentityService } from '../identity/identity-service.js';
@@ -78,9 +79,7 @@ export class TagService {
         // Create TagCollection structure with full tag data
         // TODO(MM-35): Add content validation
         const tagCollection: TagCollection = {
-            id: crypto.randomUUID(),
-            createdAt: new Date(),
-            updatedAt: new Date(),
+            ...createDbRow(),
             version: 1,
             encrypted: false,
             handle: identity.handle,
@@ -98,9 +97,7 @@ export class TagService {
 
             // Create encrypted wrapper
             object = {
-                id: crypto.randomUUID(),
-                createdAt: new Date(),
-                updatedAt: new Date(),
+                ...createDbRow(),
                 version: 1,
                 encrypted: true,
                 data: encryptedData,
@@ -195,9 +192,7 @@ export class TagService {
 
         // create manifest
         const manifest: UserManifest = {
-            id: crypto.randomUUID(),
-            createdAt: new Date(),
-            updatedAt: new Date(),
+            ...createDbRow(),
             version: 1,
             encrypted: false,
             handle: identity.handle,
@@ -214,9 +209,7 @@ export class TagService {
 
             // Create encrypted wrapper
             object = {
-                id: crypto.randomUUID(),
-                createdAt: new Date(),
-                updatedAt: new Date(),
+                ...createDbRow(),
                 version: 1,
                 encrypted: true,
                 data: encryptedData,

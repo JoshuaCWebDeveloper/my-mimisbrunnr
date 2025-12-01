@@ -58,8 +58,8 @@ export class TagRepository extends IdbRepository {
                 : {
                       ...tagUpsert,
                       id: crypto.randomUUID(),
-                      createdAt: new Date(),
-                      updatedAt: new Date(),
+                      createdAt: new Date().toISOString(),
+                      updatedAt: new Date().toISOString(),
                   };
 
         const request = store.put(tag);

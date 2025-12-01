@@ -2,16 +2,26 @@ import { z } from 'zod';
 
 export const DbRowSchema = z.object({
     id: z.string(),
-    createdAt: z.coerce.date(),
-    updatedAt: z.coerce.date(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
 });
 
 export type DbRow = z.infer<typeof DbRowSchema>;
+
+export const createDbRow = (): DbRow => {
+    return {
+        id: crypto.randomUUID(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+    };
+};
 
 export const PublishableRecordSchema = DbRowSchema.extend({
     version: z.coerce.number(),
     encrypted: z.coerce.boolean(),
 });
+
+export type PublishableRecord = z.infer<typeof PublishableRecordSchema>;
 
 /**
  * OrbitDB Discovery Record interface for cross-package communication
