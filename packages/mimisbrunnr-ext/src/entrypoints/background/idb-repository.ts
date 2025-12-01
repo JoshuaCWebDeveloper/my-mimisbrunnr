@@ -1,53 +1,87 @@
-export abstract class IdbRepository {
-    protected db: IDBDatabase | null = null;
-    protected dbName = 'my-mimisbrunnr';
-    protected abstract storeName: string;
-    protected abstract version: number;
-    protected abstract indexes: {
+const waitForIdbRequest = <T>(request: IDBRequest<T>): Promise<T> => {
+    return new Promise<T>((resolve, reject) => {
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result as T);
+    });
+};
+
+export type IdbStoreSpec = {
+    name: string;
+    indexes: {
         name: string;
         keyPath: string;
         unique?: boolean;
         primary?: boolean;
         autoIncrement?: boolean;
     }[];
+};
 
-    protected waitFor<T>(request: IDBRequest): Promise<T> {
-        return new Promise<T>((resolve, reject) => {
-            request.onerror = () => reject(request.error);
-            request.onsuccess = () => resolve(request.result as T);
-        });
+class IdbFactory {
+    private readonly dbName = 'my-mimisbrunnr';
+    private readonly version = 5;
+
+    private storeSpecs: IdbStoreSpec[] = [];
+
+    registerStore(store: IdbStoreSpec) {
+        this.storeSpecs.push(store);
     }
 
-    protected async init(): Promise<void> {
+    async createDatabase(): Promise<IDBDatabase> {
         const request = indexedDB.open(this.dbName, this.version);
 
         request.onupgradeneeded = async (event: IDBVersionChangeEvent) => {
             const openDbRequest = event.target as IDBOpenDBRequest;
             const db = openDbRequest.result;
 
-            let store: IDBObjectStore | undefined;
-            if (!db.objectStoreNames.contains(this.storeName)) {
-                const primaryIndex = this.indexes.find(index => index.primary);
-                store = db.createObjectStore(this.storeName, {
-                    keyPath: primaryIndex?.keyPath ?? 'id',
-                    autoIncrement: primaryIndex?.autoIncrement ?? false,
-                });
-            } else {
-                // Use the transaction provided by the event to access the existing store
-                store = openDbRequest.transaction?.objectStore(this.storeName);
-            }
+            for (const storeSpec of this.storeSpecs) {
+                const { name, indexes } = storeSpec;
 
-            // Now you can safely check/create the indexes
-            for (const index of this.indexes) {
-                if (store && !store.indexNames.contains(index.name)) {
-                    store.createIndex(index.name, index.keyPath, {
-                        unique: index.unique ?? false,
+                let store: IDBObjectStore | undefined;
+                if (!db.objectStoreNames.contains(name)) {
+                    const primaryIndex = indexes.find(index => index.primary);
+                    store = db.createObjectStore(name, {
+                        keyPath: primaryIndex?.keyPath ?? 'id',
+                        autoIncrement: primaryIndex?.autoIncrement ?? false,
                     });
+                } else {
+                    // Use the transaction provided by the event to access the existing store
+                    store = openDbRequest.transaction?.objectStore(name);
+                }
+
+                // Now you can safely check/create the indexes
+                for (const index of indexes) {
+                    if (index.primary) {
+                        continue;
+                    }
+
+                    if (store && !store.indexNames.contains(index.name)) {
+                        store.createIndex(index.name, index.keyPath, {
+                            unique: index.unique ?? false,
+                        });
+                    }
                 }
             }
         };
 
-        this.db = await this.waitFor(request);
+        return waitForIdbRequest(request);
+    }
+}
+
+const idbFactory = new IdbFactory();
+
+export abstract class IdbRepository {
+    protected db: IDBDatabase | null = null;
+
+    constructor(private storeSpec: IdbStoreSpec) {
+        idbFactory.registerStore(storeSpec);
+    }
+
+    protected waitFor<T>(request: IDBRequest): Promise<T> {
+        return waitForIdbRequest(request);
+    }
+
+    protected async init(): Promise<void> {
+        this.db = await idbFactory.createDatabase();
     }
 
     protected async openStore(
@@ -63,8 +97,8 @@ export abstract class IdbRepository {
         }
 
         return this.db
-            .transaction([this.storeName], mode, options)
-            .objectStore(this.storeName);
+            .transaction([this.storeSpec.name], mode, options)
+            .objectStore(this.storeSpec.name);
     }
 
     /**

@@ -37,12 +37,15 @@ enum IndexName {
  * identity data from IndexedDB.
  */
 export class IdentityRepository extends IdbRepository {
-    protected override readonly storeName = 'identities';
-    protected override readonly version = 3; // Same version as TagRepository for shared DB
-    protected override readonly indexes = [
-        { name: 'did', keyPath: 'did', primary: true },
-        { name: IndexName.Handle, keyPath: 'handle' },
-    ];
+    constructor() {
+        super({
+            name: 'identities',
+            indexes: [
+                { name: 'did', keyPath: 'did', primary: true },
+                { name: IndexName.Handle, keyPath: 'handle' },
+            ],
+        });
+    }
 
     /**
      * Save encrypted identity to storage
@@ -53,12 +56,17 @@ export class IdentityRepository extends IdbRepository {
      * @remarks
      * This will overwrite any existing identity with the same DID
      */
-    async save(encryptedIdentity: EncryptedIdentity): Promise<EncryptedIdentity> {
+    async save(
+        encryptedIdentity: EncryptedIdentity
+    ): Promise<EncryptedIdentity> {
         const store = await this.openStore();
         const request = store.put(encryptedIdentity);
         await this.waitFor(request);
 
-        log.info('[IdentityRepository] Saved encrypted identity:', encryptedIdentity.did);
+        log.info(
+            '[IdentityRepository] Saved encrypted identity:',
+            encryptedIdentity.did
+        );
         return encryptedIdentity;
     }
 
@@ -71,7 +79,9 @@ export class IdentityRepository extends IdbRepository {
     async get(did: string): Promise<EncryptedIdentity | null> {
         const store = await this.openStore('readonly');
         const request = store.get(did);
-        const identity = await this.waitFor<EncryptedIdentity | undefined>(request);
+        const identity = await this.waitFor<EncryptedIdentity | undefined>(
+            request
+        );
 
         if (identity) {
             log.info('[IdentityRepository] Loaded encrypted identity:', did);
@@ -95,12 +105,17 @@ export class IdentityRepository extends IdbRepository {
         const store = await this.openStore('readonly');
         const index = store.index(IndexName.Handle);
         const request = index.get(handle);
-        const identity = await this.waitFor<EncryptedIdentity | undefined>(request);
+        const identity = await this.waitFor<EncryptedIdentity | undefined>(
+            request
+        );
 
         if (identity) {
             log.info('[IdentityRepository] Loaded identity by handle:', handle);
         } else {
-            log.info('[IdentityRepository] Identity not found for handle:', handle);
+            log.info(
+                '[IdentityRepository] Identity not found for handle:',
+                handle
+            );
         }
 
         return identity || null;
@@ -116,7 +131,10 @@ export class IdentityRepository extends IdbRepository {
         const request = store.getAll();
         const identities = await this.waitFor<EncryptedIdentity[]>(request);
 
-        log.info('[IdentityRepository] Loaded all identities:', identities.length);
+        log.info(
+            '[IdentityRepository] Loaded all identities:',
+            identities.length
+        );
         return identities;
     }
 
@@ -153,10 +171,16 @@ export class IdentityRepository extends IdbRepository {
             log.info('[IdentityRepository] No identity found');
             return null;
         } else if (identities.length === 1) {
-            log.info('[IdentityRepository] Current identity:', identities[0].did);
+            log.info(
+                '[IdentityRepository] Current identity:',
+                identities[0].did
+            );
             return identities[0];
         } else {
-            log.warn('[IdentityRepository] Multiple identities found:', identities.length);
+            log.warn(
+                '[IdentityRepository] Multiple identities found:',
+                identities.length
+            );
             // For now, return the first one
             // TODO(Epic 2): Handle multiple identities properly
             return identities[0];

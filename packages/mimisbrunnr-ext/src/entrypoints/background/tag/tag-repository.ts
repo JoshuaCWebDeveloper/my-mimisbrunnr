@@ -7,12 +7,15 @@ enum IndexName {
 
 // Storage service for tags
 export class TagRepository extends IdbRepository {
-    protected override readonly storeName = 'tags';
-    protected override readonly version = 3;
-    protected override readonly indexes = [
-        { name: 'id', keyPath: 'id', primary: true },
-        { name: IndexName.Username, keyPath: 'username' },
-    ];
+    constructor() {
+        super({
+            name: 'tags',
+            indexes: [
+                { name: 'id', keyPath: 'id', primary: true },
+                { name: IndexName.Username, keyPath: 'username' },
+            ],
+        });
+    }
 
     async list(): Promise<Tag[]> {
         const store = await this.openStore();
