@@ -31,7 +31,6 @@ import { scrypt } from 'scrypt-js';
 import nacl from 'tweetnacl';
 import { sha256 } from '@noble/hashes/sha2';
 import { bytesToHex } from '@noble/hashes/utils';
-import type { Identity } from './identity/identity-service.js';
 
 // ============================================================================
 // Types
@@ -90,12 +89,6 @@ const SCRYPT_PARAMS = {
 };
 
 /**
- * Minimum passphrase length
- * TODO(MM-35): Add entropy validation beyond length
- */
-const MIN_PASSPHRASE_LENGTH = 16;
-
-/**
  * Content encryption salt length (random, stored with encrypted content)
  */
 const CONTENT_SALT_LENGTH = 32;
@@ -104,64 +97,6 @@ const CONTENT_SALT_LENGTH = 32;
  * Nonce length for XSalsa20-Poly1305
  */
 const NONCE_LENGTH = 24;
-
-// ============================================================================
-// Passphrase Validation
-// ============================================================================
-
-/**
- * Validate passphrase meets minimum requirements
- *
- * @param passphrase - User's passphrase
- * @returns Error message if invalid, null if valid
- *
- * @remarks
- * TODO(MM-35): Add entropy/strength validation
- * TODO(MM-36): Add rate limiting to prevent brute force
- */
-export function validatePassphrase(passphrase: string): string | null {
-    if (passphrase.length < MIN_PASSPHRASE_LENGTH) {
-        return `Passphrase must be at least ${MIN_PASSPHRASE_LENGTH} characters`;
-    }
-    return null;
-}
-
-/**
- * Calculate passphrase strength (basic heuristic)
- *
- * @param passphrase - User's passphrase
- * @returns Strength score: 'weak' | 'medium' | 'strong'
- *
- * @remarks
- * This is a simple heuristic for UI feedback
- * TODO(MM-35): Use proper entropy calculation (e.g., zxcvbn)
- */
-export function calculatePassphraseStrength(
-    passphrase: string
-): 'weak' | 'medium' | 'strong' {
-    if (passphrase.length < MIN_PASSPHRASE_LENGTH) {
-        return 'weak';
-    }
-
-    let score = 0;
-
-    // Length bonus
-    if (passphrase.length >= 20) score += 2;
-    else if (passphrase.length >= MIN_PASSPHRASE_LENGTH) score += 1;
-
-    // Character variety
-    if (/[a-z]/.test(passphrase)) score += 1;
-    if (/[A-Z]/.test(passphrase)) score += 1;
-    if (/[0-9]/.test(passphrase)) score += 1;
-    if (/[^a-zA-Z0-9]/.test(passphrase)) score += 1;
-
-    // Multiple words bonus
-    if (/\s/.test(passphrase)) score += 1;
-
-    if (score >= 5) return 'strong';
-    if (score >= 3) return 'medium';
-    return 'weak';
-}
 
 // ============================================================================
 // Key Derivation
@@ -211,7 +146,9 @@ async function deriveKey(
  * @param passphrase - User's passphrase
  * @returns 32-byte seed for Ed25519 keypair
  */
-async function deriveIdentitySeed(passphrase: string): Promise<Uint8Array> {
+export async function deriveIdentitySeed(
+    passphrase: string
+): Promise<Uint8Array> {
     return deriveKey(passphrase, IDENTITY_SALT);
 }
 
@@ -240,7 +177,7 @@ async function deriveContentKey(
  * @param seed - 32-byte seed
  * @returns Ed25519 keypair
  */
-function generateKeypairFromSeed(seed: Uint8Array): nacl.SignKeyPair {
+export function generateKeypairFromSeed(seed: Uint8Array): nacl.SignKeyPair {
     return nacl.sign.keyPair.fromSeed(seed);
 }
 
@@ -298,95 +235,6 @@ export function extractPublicKeyFromDID(did: string): Uint8Array {
 
     // Extract public key (skip 2-byte prefix)
     return multicodecKey.slice(2);
-}
-
-// ============================================================================
-// Identity Generation
-// ============================================================================
-
-/**
- * Generate complete identity from passphrase
- * This is the main entry point for identity creation
- *
- * @param passphrase - User's passphrase
- * @param handle - X.com handle (e.g., @alice)
- * @returns Complete Identity object
- *
- * @remarks
- * Process:
- * 1. Validate passphrase
- * 2. Derive seed using constant IDENTITY_SALT
- * 3. Generate Ed25519 keypair from seed
- * 4. Generate DID from public key
- * 5. Create Identity object
- *
- * TODO(MM-36): Add timing attack protection
- */
-export async function generateIdentity(
-    passphrase: string,
-    handle: string
-): Promise<Identity> {
-    // Validate passphrase
-    const validationError = validatePassphrase(passphrase);
-    if (validationError) {
-        throw new Error(validationError);
-    }
-
-    // Validate handle format
-    if (!handle.startsWith('@') || handle.length < 2 || handle.length > 16) {
-        throw new Error('Invalid handle format');
-    }
-
-    // Derive identity seed
-    const seed = await deriveIdentitySeed(passphrase);
-
-    // Generate keypair
-    const keypair = generateKeypairFromSeed(seed);
-
-    // Generate DID
-    const did = generateDIDFromPublicKey(keypair.publicKey);
-
-    // Create identity
-    const now = Date.now();
-    const identity: Identity = {
-        did,
-        publicKey: keypair.publicKey,
-        secretKey: keypair.secretKey,
-        handle,
-        createdAt: now,
-        updatedAt: now,
-    };
-
-    // TODO(MM-36): Clear sensitive data
-    // seed.fill(0);
-
-    return identity;
-}
-
-/**
- * Verify that a passphrase can derive a specific identity
- * Used for identity loading/validation
- *
- * @param passphrase - User's passphrase
- * @param expectedDID - Expected DID
- * @returns True if passphrase derives the expected DID
- */
-export async function verifyPassphrase(
-    passphrase: string,
-    expectedDID: string
-): Promise<boolean> {
-    try {
-        const seed = await deriveIdentitySeed(passphrase);
-        const keypair = generateKeypairFromSeed(seed);
-        const derivedDID = generateDIDFromPublicKey(keypair.publicKey);
-
-        // TODO(MM-36): Clear sensitive data
-        // seed.fill(0);
-
-        return derivedDID === expectedDID;
-    } catch {
-        return false;
-    }
 }
 
 // ============================================================================

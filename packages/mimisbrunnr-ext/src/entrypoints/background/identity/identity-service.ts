@@ -26,15 +26,22 @@
 import log from 'loglevel';
 import { IdentityRepository } from './identity-repository.js';
 import {
-    generateIdentity,
-    verifyPassphrase,
-    validatePassphrase,
     encryptContent,
     decryptContent,
     generateContentSalt,
     bytesToBase64,
     base64ToBytes,
+    generateDIDFromPublicKey,
+    deriveIdentitySeed,
+    generateKeypairFromSeed,
 } from '../crypto.js';
+import { createDbRow, DbRow } from '@my-mimisbrunnr/protocol';
+
+/**
+ * Minimum passphrase length
+ * TODO(MM-35): Add entropy validation beyond length
+ */
+const MIN_PASSPHRASE_LENGTH = 1;
 
 // ============================================================================
 // Types
@@ -48,7 +55,7 @@ import {
  * SECURITY: Never persist this to storage - always encrypt first
  * TODO(MM-36): Implement secure memory clearing when identity no longer needed
  */
-export interface Identity {
+export interface Identity extends Omit<DbRow, 'id'> {
     /** DID identifier (did:key:z6Mk...) */
     did: string;
     /** Ed25519 public key (32 bytes) */
@@ -124,6 +131,114 @@ export class IdentityService {
     // ========================================================================
 
     /**
+     * Validate passphrase meets minimum requirements
+     *
+     * @param passphrase - User's passphrase
+     * @returns Error message if invalid, null if valid
+     *
+     * @remarks
+     * TODO(MM-35): Add entropy/strength validation
+     * TODO(MM-36): Add rate limiting to prevent brute force
+     */
+    private validatePassphrase(passphrase: string): string | null {
+        if (passphrase.length < MIN_PASSPHRASE_LENGTH) {
+            return `Passphrase must be at least ${MIN_PASSPHRASE_LENGTH} characters`;
+        }
+        return null;
+    }
+
+    // ============================================================================
+    // Identity Generation
+    // ============================================================================
+
+    /**
+     * Generate complete identity from passphrase
+     * This is the main entry point for identity creation
+     *
+     * @param passphrase - User's passphrase
+     * @param handle - X.com handle (e.g., @alice)
+     * @returns Complete Identity object
+     *
+     * @remarks
+     * Process:
+     * 1. Validate passphrase
+     * 2. Derive seed using constant IDENTITY_SALT
+     * 3. Generate Ed25519 keypair from seed
+     * 4. Generate DID from public key
+     * 5. Create Identity object
+     *
+     * TODO(MM-36): Add timing attack protection
+     */
+    private async generateIdentity(
+        passphrase: string,
+        handle: string
+    ): Promise<Identity> {
+        // Validate passphrase
+        const validationError = this.validatePassphrase(passphrase);
+        if (validationError) {
+            throw new Error(validationError);
+        }
+
+        // Validate handle format
+        if (
+            !handle.startsWith('@') ||
+            handle.length < 2 ||
+            handle.length > 16
+        ) {
+            throw new Error('Invalid handle format');
+        }
+
+        // Derive identity seed
+        const seed = await deriveIdentitySeed(passphrase);
+
+        // Generate keypair
+        const keypair = generateKeypairFromSeed(seed);
+
+        // Generate DID
+        const did = generateDIDFromPublicKey(keypair.publicKey);
+
+        // Create identity
+        const identity: Identity = {
+            ...createDbRow(),
+            did,
+            publicKey: keypair.publicKey,
+            secretKey: keypair.secretKey,
+            handle,
+        };
+
+        // TODO(MM-36): Clear sensitive data
+        // seed.fill(0);
+
+        return identity;
+    }
+
+    /**
+     * Verify that a passphrase can derive a specific identity
+     * Used for identity loading/validation
+     *
+     * @param passphrase - User's passphrase
+     * @param expectedDID - Expected DID
+     * @returns True if passphrase derives the expected DID
+     */
+    private async verifyPassphrase(
+        passphrase: string,
+        expectedDID: string
+    ): Promise<boolean> {
+        try {
+            const seed = await deriveIdentitySeed(passphrase);
+            const keypair = generateKeypairFromSeed(seed);
+            const derivedDID = generateDIDFromPublicKey(keypair.publicKey);
+
+            // TODO(MM-36): Clear sensitive data
+            // seed.fill(0);
+
+            return derivedDID === expectedDID;
+        } catch {
+            return false;
+        }
+    }
+
+    /**
      * Create a new identity from passphrase and handle
      *
      * @param passphrase - User's passphrase (minimum 16 characters)
@@ -147,7 +262,7 @@ export class IdentityService {
         log.info('[IdentityService] Creating new identity for handle:', handle);
 
         // Validate passphrase
-        const passphraseError = validatePassphrase(passphrase);
+        const passphraseError = this.validatePassphrase(passphrase);
         if (passphraseError) {
             throw new Error(passphraseError);
         }
@@ -161,7 +276,7 @@ export class IdentityService {
         }
 
         // Generate identity
-        const identity = await generateIdentity(passphrase, handle);
+        const identity = await this.generateIdentity(passphrase, handle);
 
         log.info('[IdentityService] Generated identity:', identity.did);
 
@@ -208,7 +323,7 @@ export class IdentityService {
         }
 
         // Verify passphrase
-        const isValid = await verifyPassphrase(
+        const isValid = await this.verifyPassphrase(
             passphrase,
             encryptedIdentity.did
         );
@@ -330,7 +445,7 @@ export class IdentityService {
         }
 
         // Verify passphrase before deletion
-        const isValid = await verifyPassphrase(
+        const isValid = await this.verifyPassphrase(
             passphrase,
             encryptedIdentity.did
         );
