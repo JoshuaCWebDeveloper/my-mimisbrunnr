@@ -13,8 +13,16 @@ import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 import { TagService } from './tag-service.js';
 import type { TagRepository } from './tag-repository.js';
 import type { IpfsService } from '../ipfs/ipfs-service.js';
-import type { IdentityService, Identity } from '../identity/identity-service.js';
-import type { Tag, CreateTag, TagCollection, EncryptedTagCollection } from '@my-mimisbrunnr/protocol';
+import type {
+    IdentityService,
+    Identity,
+} from '../identity/identity-service.js';
+import type {
+    Tag,
+    CreateTag,
+    TagCollection,
+    EncryptedTagCollection,
+} from '@my-mimisbrunnr/protocol';
 
 // Mock repositories and services
 const mockTagRepository = {
@@ -145,7 +153,9 @@ describe('TagService', () => {
                 const result = await tagService.listByUsername('elonmusk');
 
                 // Assert
-                expect(mockTagRepository.listByUsername).toHaveBeenCalledWith('elonmusk');
+                expect(mockTagRepository.listByUsername).toHaveBeenCalledWith(
+                    'elonmusk'
+                );
                 expect(result).toEqual([mockTag]);
             });
         });
@@ -159,7 +169,9 @@ describe('TagService', () => {
                 const result = await tagService.upsert(mockCreateTag);
 
                 // Assert
-                expect(mockTagRepository.upsert).toHaveBeenCalledWith(mockCreateTag);
+                expect(mockTagRepository.upsert).toHaveBeenCalledWith(
+                    mockCreateTag
+                );
                 expect(result).toEqual(mockTag);
             });
 
@@ -172,7 +184,9 @@ describe('TagService', () => {
                 const result = await tagService.upsert(updatedTag);
 
                 // Assert
-                expect(mockTagRepository.upsert).toHaveBeenCalledWith(updatedTag);
+                expect(mockTagRepository.upsert).toHaveBeenCalledWith(
+                    updatedTag
+                );
                 expect(result).toEqual(updatedTag);
             });
         });
@@ -197,20 +211,26 @@ describe('TagService', () => {
                 // Arrange
                 mockIdentityService.getCurrent.mockReturnValue(mockIdentity);
                 mockTagRepository.list.mockResolvedValue([mockTag]);
-                mockIdentityService.encryptWithCurrentIdentity.mockResolvedValue({
-                    encryptedData: 'encrypted-data',
-                    nonce: 'nonce',
-                    salt: 'salt',
-                });
+                mockIdentityService.encryptWithCurrentIdentity.mockResolvedValue(
+                    {
+                        encryptedData: 'encrypted-data',
+                        nonce: 'nonce',
+                        salt: 'salt',
+                    }
+                );
                 mockIpfsService.addObject.mockResolvedValue('QmTest123');
 
                 // Act
-                const cid = await tagService.publishTagCollection({ encrypt: true });
+                const cid = await tagService.publishTagCollection({
+                    encrypt: true,
+                });
 
                 // Assert
                 expect(mockIdentityService.getCurrent).toHaveBeenCalled();
                 expect(mockTagRepository.list).toHaveBeenCalled();
-                expect(mockIdentityService.encryptWithCurrentIdentity).toHaveBeenCalled();
+                expect(
+                    mockIdentityService.encryptWithCurrentIdentity
+                ).toHaveBeenCalled();
                 expect(mockIpfsService.addObject).toHaveBeenCalledWith(
                     expect.objectContaining({
                         version: 1,
@@ -228,15 +248,20 @@ describe('TagService', () => {
                 // Arrange
                 mockIdentityService.getCurrent.mockReturnValue(mockIdentity);
                 mockTagRepository.list.mockResolvedValue([mockTag]);
-                mockIdentityService.encryptWithCurrentIdentity.mockResolvedValue({
-                    encryptedData: 'encrypted-data',
-                    nonce: 'nonce',
-                    salt: 'salt',
-                });
+                mockIdentityService.encryptWithCurrentIdentity.mockResolvedValue(
+                    {
+                        encryptedData: 'encrypted-data',
+                        nonce: 'nonce',
+                        salt: 'salt',
+                    }
+                );
                 mockIpfsService.addObject.mockResolvedValue('QmTest123');
 
                 // Act
-                await tagService.publishTagCollection({ encrypt: true, pin: true });
+                await tagService.publishTagCollection({
+                    encrypt: true,
+                    pin: true,
+                });
 
                 // Assert
                 expect(mockIpfsService.addObject).toHaveBeenCalledWith(
@@ -254,10 +279,14 @@ describe('TagService', () => {
                 mockIpfsService.addObject.mockResolvedValue('QmTest123');
 
                 // Act
-                const cid = await tagService.publishTagCollection({ encrypt: false });
+                const cid = await tagService.publishTagCollection({
+                    encrypt: false,
+                });
 
                 // Assert
-                expect(mockIdentityService.encryptWithCurrentIdentity).not.toHaveBeenCalled();
+                expect(
+                    mockIdentityService.encryptWithCurrentIdentity
+                ).not.toHaveBeenCalled();
                 expect(mockIpfsService.addObject).toHaveBeenCalledWith(
                     expect.objectContaining({
                         version: 1,
@@ -297,19 +326,25 @@ describe('TagService', () => {
                     tags: [mockTag],
                 };
 
-                mockIpfsService.retrieveObject.mockResolvedValue(encryptedCollection);
-                mockIdentityService.decryptWithCurrentIdentity.mockResolvedValue(plainCollection);
+                mockIpfsService.retrieveObject.mockResolvedValue(
+                    encryptedCollection
+                );
+                mockIdentityService.decryptWithCurrentIdentity.mockResolvedValue(
+                    plainCollection
+                );
 
                 // Act
-                const result = await tagService.retrieveTagCollection('QmTest123');
+                const result = await tagService.retrieveTagCollection(
+                    'QmTest123'
+                );
 
                 // Assert
-                expect(mockIpfsService.retrieveObject).toHaveBeenCalledWith('QmTest123');
-                expect(mockIdentityService.decryptWithCurrentIdentity).toHaveBeenCalledWith(
-                    'encrypted-data',
-                    'nonce',
-                    'salt'
+                expect(mockIpfsService.retrieveObject).toHaveBeenCalledWith(
+                    'QmTest123'
                 );
+                expect(
+                    mockIdentityService.decryptWithCurrentIdentity
+                ).toHaveBeenCalledWith('encrypted-data', 'nonce', 'salt');
                 expect(result).toEqual(plainCollection);
             });
         });
@@ -327,14 +362,22 @@ describe('TagService', () => {
                     tags: [mockTag],
                 };
 
-                mockIpfsService.retrieveObject.mockResolvedValue(plainCollection);
+                mockIpfsService.retrieveObject.mockResolvedValue(
+                    plainCollection
+                );
 
                 // Act
-                const result = await tagService.retrieveTagCollection('QmTest123');
+                const result = await tagService.retrieveTagCollection(
+                    'QmTest123'
+                );
 
                 // Assert
-                expect(mockIpfsService.retrieveObject).toHaveBeenCalledWith('QmTest123');
-                expect(mockIdentityService.decryptWithCurrentIdentity).not.toHaveBeenCalled();
+                expect(mockIpfsService.retrieveObject).toHaveBeenCalledWith(
+                    'QmTest123'
+                );
+                expect(
+                    mockIdentityService.decryptWithCurrentIdentity
+                ).not.toHaveBeenCalled();
                 expect(result).toEqual(plainCollection);
             });
         });
@@ -342,7 +385,9 @@ describe('TagService', () => {
         describe('retrieveTagCollection - invalid', () => {
             it('should reject invalid tag collection format', async () => {
                 // Arrange
-                mockIpfsService.retrieveObject.mockResolvedValue({ invalid: 'data' });
+                mockIpfsService.retrieveObject.mockResolvedValue({
+                    invalid: 'data',
+                });
 
                 // Act & Assert
                 await expect(
@@ -363,7 +408,10 @@ describe('TagService', () => {
                     version: 1,
                     encrypted: false,
                     handle: '@testuser',
-                    tags: [mockTag, { ...mockTag, id: 'tag-2', username: 'other' }],
+                    tags: [
+                        mockTag,
+                        { ...mockTag, id: 'tag-2', username: 'other' },
+                    ],
                 };
 
                 mockIpfsService.retrieveObject.mockResolvedValue(tagCollection);
@@ -373,12 +421,17 @@ describe('TagService', () => {
                 });
 
                 // Act
-                const result = await tagService.importTagCollection('QmTest123', {
-                    mode: 'merge',
-                });
+                const result = await tagService.importTagCollection(
+                    'QmTest123',
+                    {
+                        mode: 'merge',
+                    }
+                );
 
                 // Assert
-                expect(mockIpfsService.retrieveObject).toHaveBeenCalledWith('QmTest123');
+                expect(mockIpfsService.retrieveObject).toHaveBeenCalledWith(
+                    'QmTest123'
+                );
                 expect(mockTagRepository.importTags).toHaveBeenCalledWith(
                     expect.arrayContaining([
                         expect.objectContaining({ username: 'elonmusk' }),
@@ -408,9 +461,12 @@ describe('TagService', () => {
                 });
 
                 // Act
-                const result = await tagService.importTagCollection('QmTest123', {
-                    mode: 'overwrite',
-                });
+                const result = await tagService.importTagCollection(
+                    'QmTest123',
+                    {
+                        mode: 'overwrite',
+                    }
+                );
 
                 // Assert
                 expect(mockTagRepository.importTags).toHaveBeenCalledWith(
@@ -466,11 +522,13 @@ describe('TagService', () => {
                 };
 
                 mockIdentityService.getCurrent.mockReturnValue(mockIdentity);
-                mockIdentityService.encryptWithCurrentIdentity.mockResolvedValue({
-                    encryptedData: 'encrypted-manifest',
-                    nonce: 'manifest-nonce',
-                    salt: 'manifest-salt',
-                });
+                mockIdentityService.encryptWithCurrentIdentity.mockResolvedValue(
+                    {
+                        encryptedData: 'encrypted-manifest',
+                        nonce: 'manifest-nonce',
+                        salt: 'manifest-salt',
+                    }
+                );
                 mockIpfsService.addObject.mockResolvedValue('QmManifest123');
 
                 // Act
@@ -482,7 +540,9 @@ describe('TagService', () => {
 
                 // Assert
                 expect(mockIdentityService.getCurrent).toHaveBeenCalled();
-                expect(mockIdentityService.encryptWithCurrentIdentity).toHaveBeenCalled();
+                expect(
+                    mockIdentityService.encryptWithCurrentIdentity
+                ).toHaveBeenCalled();
                 expect(mockIpfsService.addObject).toHaveBeenCalledWith(
                     expect.objectContaining({
                         version: 1,
