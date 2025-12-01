@@ -49,7 +49,7 @@ type StrengthLevel = 'weak' | 'medium' | 'strong' | null;
 export const PassphraseManager: React.FC<PassphraseManagerProps> = ({
     value,
     onChange,
-    placeholder = 'Enter passphrase (min 16 characters)',
+    placeholder = 'Enter passphrase',
     requireConfirmation = false,
     confirmValue = '',
     onConfirmChange,

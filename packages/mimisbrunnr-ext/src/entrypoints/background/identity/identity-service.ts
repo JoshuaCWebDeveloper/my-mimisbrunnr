@@ -233,7 +233,7 @@ export class IdentityService {
     /**
      * Create a new identity from passphrase and handle
      *
-     * @param passphrase - User's passphrase (minimum 16 characters)
+     * @param passphrase - User's passphrase
      * @param handle - X.com handle (e.g., @alice)
      * @returns Created Identity
      * @throws Error if passphrase invalid, handle invalid, or identity already exists

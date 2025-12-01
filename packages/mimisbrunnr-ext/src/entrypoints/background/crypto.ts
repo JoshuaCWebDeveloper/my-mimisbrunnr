@@ -14,7 +14,6 @@
  *
  * Security parameters (from technical spec):
  * - Scrypt: N=2^15 (32768), r=8, p=1, output=32 bytes
- * - Passphrase: Minimum 16 characters
  * - Ed25519: 32-byte public key, 64-byte secret key
  * - XSalsa20-Poly1305: 24-byte nonce, authenticated encryption
  *

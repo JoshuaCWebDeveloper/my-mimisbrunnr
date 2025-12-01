@@ -87,7 +87,6 @@ Use `scrypt` with fixed parameters to derive a 32-byte seed → Ed25519 keypair.
 
 -   `N = 2^15` (32768), `r = 8`, `p = 1`, output = 32 bytes.
 -   Salt: constant domain tag (e.g. `"xcom-did-v1"`).
--   Passphrase minimum length enforced (≥16 chars). User chooses strong phrase.
 
 ### 2.5 Security & Threat Mitigation
 
@@ -170,8 +169,6 @@ import nacl from 'tweetnacl';
 import { scryptSync } from 'crypto';
 
 function deriveIdentity(passphrase) {
-    if (passphrase.length < 16)
-        throw new Error('Passphrase ≥16 chars required');
     const seed = scryptSync(passphrase, 'xcom-did-v1', 1 << 15, 8, 1, 32);
     const kp = nacl.sign.keyPair.fromSeed(seed);
     const did = didKeyFromPublic(kp.publicKey); // implement multicodec → did:key

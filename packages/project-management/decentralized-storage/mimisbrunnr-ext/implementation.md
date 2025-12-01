@@ -193,7 +193,6 @@ This implementation is organized into two major epics that build upon each other
 
 -   Implement scrypt-based key derivation with parameters: N=2^15, r=8, p=1
 -   Build Ed25519 keypair generation and DID creation
--   Create secure passphrase validation (minimum 16 characters)
 -   Implement passphrase-based content encryption/decryption using separate salt
 -   Implement IndexedDB storage for encrypted identity data
 
@@ -967,7 +966,6 @@ This section breaks down Epic 1 into concrete implementation tickets that can be
 -   Implement scrypt-based key derivation (N=2^15, r=8, p=1)
 -   Build Ed25519 keypair generation from derived seed
 -   Create DID:key generation from public key
--   Implement passphrase validation (minimum 16 characters)
 -   Build content encryption/decryption using separate salt from identity salt
 -   Create IndexedDB schema for identity storage
 -   Build identity service with repository pattern
