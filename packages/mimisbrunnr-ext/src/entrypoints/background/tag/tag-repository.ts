@@ -1,67 +1,24 @@
 import type { CreateTag, Tag } from '@my-mimisbrunnr/protocol';
+import { IdbRepository } from '../idb-repository.js';
 
 enum IndexName {
     Username = 'username_idx',
 }
 
 // Storage service for tags
-export class TagRepository {
-    private db: IDBDatabase | null = null;
-    private readonly dbName = 'my-mimisbrunnr';
-    private readonly storeName = 'tags';
-    private readonly version = 3;
-
-    private waitFor<T>(request: IDBRequest): Promise<T> {
-        return new Promise<T>((resolve, reject) => {
-            request.onerror = () => reject(request.error);
-            request.onsuccess = () => resolve(request.result as T);
+export class TagRepository extends IdbRepository {
+    constructor() {
+        super({
+            name: 'tags',
+            indexes: [
+                { name: 'id', keyPath: 'id', primary: true },
+                { name: IndexName.Username, keyPath: 'username' },
+            ],
         });
     }
 
-    private async init(): Promise<void> {
-        const request = indexedDB.open(this.dbName, this.version);
-
-        request.onupgradeneeded = async (event: IDBVersionChangeEvent) => {
-            const openDbRequest = event.target as IDBOpenDBRequest;
-            const db = openDbRequest.result;
-
-            let store: IDBObjectStore | undefined;
-            if (!db.objectStoreNames.contains(this.storeName)) {
-                store = db.createObjectStore(this.storeName, {
-                    keyPath: 'id',
-                });
-            } else {
-                // Use the transaction provided by the event to access the existing store
-                store = openDbRequest.transaction?.objectStore(this.storeName);
-            }
-
-            // Now you can safely check/create the index
-            if (store && !store.indexNames.contains(IndexName.Username)) {
-                store.createIndex(IndexName.Username, 'username', {
-                    unique: false,
-                });
-            }
-        };
-
-        this.db = await this.waitFor(request);
-    }
-
-    private async getStore(): Promise<IDBObjectStore> {
-        if (!this.db) {
-            await this.init();
-        }
-
-        if (!this.db) {
-            throw new Error('Database not initialized');
-        }
-
-        return this.db
-            .transaction([this.storeName], 'readwrite')
-            .objectStore(this.storeName);
-    }
-
     async list(): Promise<Tag[]> {
-        const store = await this.getStore();
+        const store = await this.openStore();
 
         const request = store.getAll();
 
@@ -71,7 +28,7 @@ export class TagRepository {
     }
 
     async listByUsername(username: string): Promise<Tag[]> {
-        const store = await this.getStore();
+        const store = await this.openStore();
         const index = store.index(IndexName.Username);
 
         const request = index.getAll(username);
@@ -82,7 +39,7 @@ export class TagRepository {
     }
 
     async get(id: string): Promise<Tag | null> {
-        const store = await this.getStore();
+        const store = await this.openStore();
 
         const request = store.get(id);
 
@@ -92,13 +49,18 @@ export class TagRepository {
     }
 
     async upsert(tagUpsert: CreateTag | Tag): Promise<Tag> {
-        const store = await this.getStore();
+        const store = await this.openStore();
 
         // convert to tag safely
         const tag: Tag =
             'id' in tagUpsert && tagUpsert.id
                 ? (tagUpsert as Tag)
-                : { ...tagUpsert, id: crypto.randomUUID() };
+                : {
+                      ...tagUpsert,
+                      id: crypto.randomUUID(),
+                      createdAt: new Date().toISOString(),
+                      updatedAt: new Date().toISOString(),
+                  };
 
         const request = store.put(tag);
 
@@ -108,7 +70,7 @@ export class TagRepository {
     }
 
     async delete(id: string): Promise<void> {
-        const store = await this.getStore();
+        const store = await this.openStore();
 
         const request = store.delete(id);
 
@@ -116,7 +78,7 @@ export class TagRepository {
     }
 
     async clear(): Promise<void> {
-        const store = await this.getStore();
+        const store = await this.openStore();
 
         const request = store.clear();
 

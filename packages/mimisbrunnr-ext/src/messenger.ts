@@ -12,6 +12,14 @@ export enum MessageType {
     PUBLISH_TO_IPFS = 'PUBLISH_TO_IPFS',
     RETRIEVE_FROM_IPFS = 'RETRIEVE_FROM_IPFS',
     IMPORT_FROM_IPFS = 'IMPORT_FROM_IPFS',
+    // Identity operations (MM-28)
+    CREATE_IDENTITY = 'CREATE_IDENTITY',
+    UNLOCK_IDENTITY = 'UNLOCK_IDENTITY',
+    LOCK_IDENTITY = 'LOCK_IDENTITY',
+    DELETE_IDENTITY = 'DELETE_IDENTITY',
+    HAS_IDENTITY = 'HAS_IDENTITY',
+    IS_IDENTITY_UNLOCKED = 'IS_IDENTITY_UNLOCKED',
+    GET_IDENTITY_INFO = 'GET_IDENTITY_INFO',
 }
 
 export type MessageError = {
@@ -74,6 +82,48 @@ export type Message<T extends MessageType = MessageType> =
               type: T;
               body: { cid: string; mode: 'merge' | 'overwrite' };
               response: { imported: number; total: number };
+          }
+        : T extends MessageType.CREATE_IDENTITY
+        ? {
+              type: T;
+              body: { passphrase: string; handle: string };
+              response: { did: string; handle: string };
+          }
+        : T extends MessageType.UNLOCK_IDENTITY
+        ? {
+              type: T;
+              body: { passphrase: string };
+              response: { did: string; handle: string };
+          }
+        : T extends MessageType.LOCK_IDENTITY
+        ? {
+              type: T;
+              body: never;
+              response: void;
+          }
+        : T extends MessageType.DELETE_IDENTITY
+        ? {
+              type: T;
+              body: { passphrase: string };
+              response: void;
+          }
+        : T extends MessageType.HAS_IDENTITY
+        ? {
+              type: T;
+              body: never;
+              response: { hasIdentity: boolean };
+          }
+        : T extends MessageType.IS_IDENTITY_UNLOCKED
+        ? {
+              type: T;
+              body: never;
+              response: { isUnlocked: boolean };
+          }
+        : T extends MessageType.GET_IDENTITY_INFO
+        ? {
+              type: T;
+              body: never;
+              response: { did: string; handle: string } | null;
           }
         : never;
 

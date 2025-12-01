@@ -59,38 +59,23 @@ describe('Validation Service', () => {
 
     describe('Schema Validation', () => {
         describe('taglist/v1 schema', () => {
-            it('should validate correct taglist data', async () => {
-                const validTaglist = {
+            it('should validate correct encrypted taglist data', async () => {
+                const validEncryptedTaglist = {
+                    id: crypto.randomUUID(),
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
                     version: 1,
-                    handle: '@testuser',
-                    updated: Date.now(),
-                    tags: [
-                        {
-                            id: '1',
-                            username: 'user1',
-                            name: 'DeFi',
-                            color: '#ff0000',
-                        },
-                        {
-                            id: '2',
-                            username: 'user2',
-                            name: 'Testing',
-                            color: '#00ff00',
-                        },
-                        {
-                            id: '3',
-                            username: 'user3',
-                            name: 'Security',
-                            color: '#0000ff',
-                        },
-                    ],
+                    encrypted: true,
+                    data: 'base64encodedencrypteddata==',
+                    nonce: 'base64nonce==',
+                    contentSalt: 'base64salt==',
                 };
 
                 const response = await request(app)
                     .post('/validate')
                     .send({
                         schema: 'taglist/v1',
-                        json: validTaglist,
+                        json: validEncryptedTaglist,
                     })
                     .expect(200);
 
@@ -103,17 +88,14 @@ describe('Validation Service', () => {
 
             it('should reject taglist with invalid version', async () => {
                 const invalidTaglist = {
+                    id: crypto.randomUUID(),
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
                     version: 2, // Invalid version
-                    handle: '@testuser',
-                    updated: Date.now(),
-                    tags: [
-                        {
-                            id: '1',
-                            username: 'user1',
-                            name: 'Test',
-                            color: '#ff0000',
-                        },
-                    ],
+                    encrypted: true,
+                    data: 'base64encodedencrypteddata==',
+                    nonce: 'base64nonce==',
+                    contentSalt: 'base64salt==',
                 };
 
                 const response = await request(app)
@@ -136,19 +118,16 @@ describe('Validation Service', () => {
                 });
             });
 
-            it('should reject taglist with invalid handle format', async () => {
+            it('should reject taglist with missing encrypted flag', async () => {
                 const invalidTaglist = {
+                    id: crypto.randomUUID(),
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
                     version: 1,
-                    handle: 'invalid-handle', // Missing @
-                    updated: Date.now(),
-                    tags: [
-                        {
-                            id: '1',
-                            username: 'user1',
-                            name: 'Test',
-                            color: '#ff0000',
-                        },
-                    ],
+                    // Missing encrypted: true
+                    data: 'base64encodedencrypteddata==',
+                    nonce: 'base64nonce==',
+                    contentSalt: 'base64salt==',
                 };
 
                 const response = await request(app)
@@ -161,21 +140,19 @@ describe('Validation Service', () => {
 
                 expect(response.body.valid).toBe(false);
                 expect(response.body.errors).toBeDefined();
-                const handleError = response.body.errors.find(
-                    (e: ValidationError) => e.instancePath === '/handle'
-                );
-                expect(handleError).toBeDefined();
-                expect(handleError.keyword).toBe('pattern');
+                expect(response.body.errors.length).toBeGreaterThan(0);
             });
 
-            it('should reject taglist with invalid tag format', async () => {
+            it('should reject taglist with missing data field', async () => {
                 const invalidTaglist = {
+                    id: crypto.randomUUID(),
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
                     version: 1,
-                    handle: '@testuser',
-                    updated: Date.now(),
-                    tags: [
-                        { id: '1', username: 'user1', name: 'Test' }, // Missing color field
-                    ],
+                    encrypted: true,
+                    // Missing data field
+                    nonce: 'base64nonce==',
+                    contentSalt: 'base64salt==',
                 };
 
                 const response = await request(app)
@@ -187,44 +164,58 @@ describe('Validation Service', () => {
                     .expect(400);
 
                 expect(response.body.valid).toBe(false);
-                const tagError = response.body.errors.find(
-                    (e: ValidationError) =>
-                        e.instancePath === '/tags/0' && e.keyword === 'required'
-                );
-                expect(tagError).toBeDefined();
+                expect(response.body.errors).toBeDefined();
+                expect(response.body.errors.length).toBeGreaterThan(0);
             });
 
-            it('should accept taglist with duplicate tag data', async () => {
-                // Note: TagCollectionSchema doesn't enforce uniqueness on tag objects
-                const validTaglist = {
+            it('should reject taglist with missing nonce field', async () => {
+                const invalidTaglist = {
+                    id: crypto.randomUUID(),
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
                     version: 1,
-                    handle: '@testuser',
-                    updated: Date.now(),
-                    tags: [
-                        {
-                            id: '1',
-                            username: 'user1',
-                            name: 'Test',
-                            color: '#ff0000',
-                        },
-                        {
-                            id: '1',
-                            username: 'user1',
-                            name: 'Test',
-                            color: '#ff0000',
-                        }, // Duplicate
-                    ],
+                    encrypted: true,
+                    data: 'base64encodedencrypteddata==',
+                    // Missing nonce field
+                    contentSalt: 'base64salt==',
                 };
 
                 const response = await request(app)
                     .post('/validate')
                     .send({
                         schema: 'taglist/v1',
-                        json: validTaglist,
+                        json: invalidTaglist,
                     })
-                    .expect(200);
+                    .expect(400);
 
-                expect(response.body.valid).toBe(true);
+                expect(response.body.valid).toBe(false);
+                expect(response.body.errors).toBeDefined();
+                expect(response.body.errors.length).toBeGreaterThan(0);
+            });
+
+            it('should reject taglist with missing contentSalt field', async () => {
+                const invalidTaglist = {
+                    id: crypto.randomUUID(),
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                    version: 1,
+                    encrypted: true,
+                    data: 'base64encodedencrypteddata==',
+                    nonce: 'base64nonce==',
+                    // Missing contentSalt field
+                };
+
+                const response = await request(app)
+                    .post('/validate')
+                    .send({
+                        schema: 'taglist/v1',
+                        json: invalidTaglist,
+                    })
+                    .expect(400);
+
+                expect(response.body.valid).toBe(false);
+                expect(response.body.errors).toBeDefined();
+                expect(response.body.errors.length).toBeGreaterThan(0);
             });
         });
 
@@ -374,18 +365,15 @@ describe('Validation Service', () => {
 
     describe('Performance', () => {
         it('should complete validation quickly', async () => {
-            const validTaglist = {
+            const validEncryptedTaglist = {
+                id: crypto.randomUUID(),
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
                 version: 1,
-                handle: '@testuser',
-                updated: Date.now(),
-                tags: [
-                    {
-                        id: '1',
-                        username: 'user1',
-                        name: 'Test',
-                        color: '#ff0000',
-                    },
-                ],
+                encrypted: true,
+                data: 'base64encodedencrypteddata==',
+                nonce: 'base64nonce==',
+                contentSalt: 'base64salt==',
             };
 
             const start = Date.now();
@@ -393,7 +381,7 @@ describe('Validation Service', () => {
                 .post('/validate')
                 .send({
                     schema: 'taglist/v1',
-                    json: validTaglist,
+                    json: validEncryptedTaglist,
                 })
                 .expect(200);
             const duration = Date.now() - start;

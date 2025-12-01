@@ -4,7 +4,7 @@ import addFormats from 'ajv-formats';
 import { createServer } from 'http';
 import log from 'loglevel';
 import * as z from 'zod';
-import { TagCollectionSchema } from '@my-mimisbrunnr/protocol';
+import { EncryptedTagCollectionSchema } from '@my-mimisbrunnr/protocol';
 
 // Configure logging
 log.setLevel((process.env.LOG_LEVEL as log.LogLevelDesc) || 'info');
@@ -24,7 +24,7 @@ addFormats.default(ajv);
 // Convert Zod schemas from @my-mimisbrunnr/protocol to JSON Schema for AJV validation
 // Using Zod's native z.toJSONSchema() for conversion (Zod 4+)
 const schemas = {
-    'taglist/v1': z.toJSONSchema(TagCollectionSchema, {
+    'taglist/v1': z.toJSONSchema(EncryptedTagCollectionSchema, {
         target: 'draft-7', // AJV uses JSON Schema Draft 7 by default
     }),
 
