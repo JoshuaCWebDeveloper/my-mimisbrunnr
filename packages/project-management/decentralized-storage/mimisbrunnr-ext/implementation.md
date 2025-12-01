@@ -1385,8 +1385,8 @@ Procedure: Add/edit/delete a tag, publish, and then import with overwrite
 -   Kubo starts with default config (doesn't match config file in container)
     -   Causes: "Connection closed before receiving a handshake response"
     -   Solution: Restart kubo container
--   Libp2p can't fetch CID
-    -   Possible reason: connection becomes disconnected on pin attempt - probably not
+-   Validation is not applied when pinning to kubo
+    -   Solution: Restart validation-service and validation-proxy containers
 
 ---
 

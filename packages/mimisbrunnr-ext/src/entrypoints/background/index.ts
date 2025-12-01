@@ -122,6 +122,83 @@ export default defineBackground(() => {
                         sendResponse<MessageType.IMPORT_FROM_IPFS>(result);
                         break;
                     }
+                    // Identity operations (MM-28)
+                    case MessageType.CREATE_IDENTITY: {
+                        const identity = await identityService.createIdentity(
+                            message.body.passphrase,
+                            message.body.handle
+                        );
+
+                        sendResponse<MessageType.CREATE_IDENTITY>({
+                            did: identity.did,
+                            handle: identity.handle,
+                        });
+                        break;
+                    }
+                    case MessageType.UNLOCK_IDENTITY: {
+                        const identity = await identityService.unlockIdentity(
+                            message.body.passphrase
+                        );
+
+                        sendResponse<MessageType.UNLOCK_IDENTITY>({
+                            did: identity.did,
+                            handle: identity.handle,
+                        });
+                        break;
+                    }
+                    case MessageType.LOCK_IDENTITY: {
+                        identityService.lock();
+
+                        sendResponse<MessageType.LOCK_IDENTITY>(undefined);
+                        break;
+                    }
+                    case MessageType.DELETE_IDENTITY: {
+                        await identityService.delete(message.body.passphrase);
+
+                        sendResponse<MessageType.DELETE_IDENTITY>(undefined);
+                        break;
+                    }
+                    case MessageType.HAS_IDENTITY: {
+                        const hasIdentity = await identityService.hasIdentity();
+
+                        sendResponse<MessageType.HAS_IDENTITY>({
+                            hasIdentity,
+                        });
+                        break;
+                    }
+                    case MessageType.IS_IDENTITY_UNLOCKED: {
+                        const isUnlocked = identityService.isUnlocked();
+
+                        sendResponse<MessageType.IS_IDENTITY_UNLOCKED>({
+                            isUnlocked,
+                        });
+                        break;
+                    }
+                    case MessageType.GET_IDENTITY_INFO: {
+                        if (identityService.isUnlocked()) {
+                            const identity = identityService.getCurrent();
+
+                            sendResponse<MessageType.GET_IDENTITY_INFO>({
+                                did: identity.did,
+                                handle: identity.handle,
+                            });
+                        } else {
+                            const encryptedIdentity =
+                                await identityService.getEncryptedIdentity();
+
+                            if (encryptedIdentity) {
+                                sendResponse<MessageType.GET_IDENTITY_INFO>({
+                                    did: encryptedIdentity.did,
+                                    handle: encryptedIdentity.handle,
+                                });
+                            } else {
+                                sendResponse<MessageType.GET_IDENTITY_INFO>(
+                                    null
+                                );
+                            }
+                        }
+                        break;
+                    }
                 }
             } catch (error) {
                 sendResponse({ error: (error as Error).message });

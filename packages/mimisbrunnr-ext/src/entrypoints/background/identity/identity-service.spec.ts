@@ -78,8 +78,8 @@ describe('IdentityService', () => {
         it('should reject if passphrase is too short', async () => {
             // Act & Assert
             await expect(
-                identityService.createIdentity('short', mockHandle)
-            ).rejects.toThrow('Passphrase must be at least 16 characters');
+                identityService.createIdentity('', mockHandle)
+            ).rejects.toThrow('Passphrase must be at least 1 characters');
         });
 
         it('should reject if identity already exists', async () => {

@@ -3,6 +3,7 @@ import { styled } from 'styled-components';
 import { MessageType } from '../../../../../messenger.js';
 import { useMessenger } from '../../context/messenger.js';
 import { ToggleSwitch } from '../shared/toggle-switch.js';
+import { Button } from '../shared/button.js';
 import { useInvalidateListTags } from '../../queries/tags.js';
 
 /**
@@ -47,39 +48,6 @@ const StyledIpfsPublisher = styled.div`
         display: flex;
         gap: var(--space-3);
         margin-bottom: var(--space-4);
-    }
-
-    .button {
-        padding: var(--space-3) var(--space-4);
-        border-radius: var(--radius-md);
-        font-size: var(--font-size-sm);
-        font-weight: var(--font-weight-semibold);
-        box-shadow: var(--shadow-sm);
-        transition: all var(--transition-fast);
-
-        &:hover:not(:disabled) {
-            transform: translateY(-1px);
-            box-shadow: var(--shadow-md);
-        }
-
-        &:active:not(:disabled) {
-            transform: translateY(0);
-        }
-
-        &:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        &.primary {
-            background: var(--gradient-primary);
-            color: var(--color-text-inverse);
-        }
-
-        &.secondary {
-            background: var(--color-bg-secondary);
-            color: var(--color-text-primary);
-        }
     }
 
     .input-group {
@@ -238,13 +206,13 @@ export const IpfsPublisher = () => {
 
             {/* Publish Section */}
             <div className="button-container">
-                <button
-                    className="button primary"
+                <Button
+                    variant="primary"
                     onClick={handlePublish}
                     disabled={loading}
                 >
                     {loading ? 'Publishing...' : 'Publish to IPFS'}
-                </button>
+                </Button>
             </div>
 
             {publishedCid && (
@@ -290,13 +258,13 @@ export const IpfsPublisher = () => {
             </div>
 
             <div className="button-container">
-                <button
-                    className="button primary"
+                <Button
+                    variant="primary"
                     onClick={handleImport}
                     disabled={loading || !retrieveCid.trim()}
                 >
                     {loading ? 'Importing...' : 'Import Tags'}
-                </button>
+                </Button>
             </div>
 
             {importResult && (
