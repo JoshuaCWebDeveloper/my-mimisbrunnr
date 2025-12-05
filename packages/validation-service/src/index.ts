@@ -302,27 +302,29 @@ app.use((req: Request, res: Response) => {
     });
 });
 
-// Start server
-const server = createServer(app);
+// Only start server if not in test mode
+if (process.env.NODE_ENV !== 'test') {
+    const server = createServer(app);
 
-server.listen(port, () => {
-    log.info(`🔒 AJV Validation Sidecar listening on port ${port}`);
-    log.info(`📋 Available schemas: ${Object.keys(schemas).join(', ')}`);
-    log.info(
-        `🚀 Endpoints: /health, /validate, /validate/ipns/:peerId, /schemas`
-    );
-});
-
-// Graceful shutdown
-const gracefulShutdown = () => {
-    log.info('\n🛑 Shutting down validation sidecar...');
-    server.close(() => {
-        log.info('✓ Server closed');
-        process.exit(0);
+    server.listen(port, () => {
+        log.info(`🔒 AJV Validation Sidecar listening on port ${port}`);
+        log.info(`📋 Available schemas: ${Object.keys(schemas).join(', ')}`);
+        log.info(
+            `🚀 Endpoints: /health, /validate, /validate/ipns/:peerId, /schemas`
+        );
     });
-};
 
-process.on('SIGTERM', gracefulShutdown);
-process.on('SIGINT', gracefulShutdown);
+    // Graceful shutdown
+    const gracefulShutdown = () => {
+        log.info('\n🛑 Shutting down validation sidecar...');
+        server.close(() => {
+            log.info('✓ Server closed');
+            process.exit(0);
+        });
+    };
+
+    process.on('SIGTERM', gracefulShutdown);
+    process.on('SIGINT', gracefulShutdown);
+}
 
 export default app;
