@@ -17,7 +17,7 @@ import { peerIdFromString } from '@libp2p/peer-id';
 log.setLevel((process.env.LOG_LEVEL as log.LogLevelDesc) || 'info');
 
 const app = express();
-const port = process.env.VALIDATOR_PORT || 3000;
+const port = process.env.VALIDATOR_PORT || 3010;
 
 // Configure AJV with strict validation
 const ajv = new Ajv.default({
