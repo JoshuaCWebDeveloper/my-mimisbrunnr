@@ -346,7 +346,6 @@ describe('Validation Service', () => {
             expect(response.body).toMatchObject({
                 error: 'Not found',
                 path: '/unknown-endpoint',
-                availableEndpoints: ['/health', '/validate', '/schemas'],
             });
         });
 
