@@ -13,6 +13,7 @@
 import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 import { IdentityService, type EncryptedIdentity } from './identity-service.js';
 import type { IdentityRepository } from './identity-repository.js';
+import type { IpfsService } from '../ipfs/ipfs-service.js';
 
 // Mock the repository
 const mockRepository = {
@@ -46,7 +47,7 @@ describe('IdentityService', () => {
         vi.clearAllMocks();
 
         // Create service with mocked repository
-        identityService = new IdentityService();
+        identityService = new IdentityService({} as IpfsService);
         // @ts-expect-error - accessing private property for testing
         identityService.identityRepository = mockRepository;
     });
