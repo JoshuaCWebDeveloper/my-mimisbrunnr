@@ -42,7 +42,7 @@ describe('Validation Service', () => {
             expect(response.body).toMatchObject({
                 status: 'healthy',
                 service: 'ajv-validation-sidecar',
-                schemas: ['taglist/v1', 'pubsub/head/v1'],
+                schemas: ['data/write/v1', 'pubsub/head/v1'],
             });
             expect(response.body.timestamp).toBeTypeOf('number');
         });
@@ -51,14 +51,14 @@ describe('Validation Service', () => {
             const response = await request(app).get('/schemas').expect(200);
 
             expect(response.body).toHaveProperty('schemas');
-            expect(response.body.schemas).toContain('taglist/v1');
+            expect(response.body.schemas).toContain('data/write/v1');
             expect(response.body.schemas).toContain('pubsub/head/v1');
             expect(response.body).toHaveProperty('definitions');
         });
     });
 
     describe('Schema Validation', () => {
-        describe('taglist/v1 schema', () => {
+        describe('data/write/v1 schema', () => {
             it('should validate correct encrypted taglist data', async () => {
                 const validEncryptedTaglist = {
                     id: crypto.randomUUID(),
@@ -74,14 +74,14 @@ describe('Validation Service', () => {
                 const response = await request(app)
                     .post('/validate')
                     .send({
-                        schema: 'taglist/v1',
+                        schema: 'data/write/v1',
                         json: validEncryptedTaglist,
                     })
                     .expect(200);
 
                 expect(response.body).toMatchObject({
                     valid: true,
-                    schema: 'taglist/v1',
+                    schema: 'data/write/v1',
                 });
                 expect(response.body.validationTime).toMatch(/^\d+(\.\d+)?ms$/);
             });
@@ -101,14 +101,14 @@ describe('Validation Service', () => {
                 const response = await request(app)
                     .post('/validate')
                     .send({
-                        schema: 'taglist/v1',
+                        schema: 'data/write/v1',
                         json: invalidTaglist,
                     })
                     .expect(400);
 
                 expect(response.body).toMatchObject({
                     valid: false,
-                    schema: 'taglist/v1',
+                    schema: 'data/write/v1',
                 });
                 expect(response.body.errors).toBeDefined();
                 expect(response.body.errors[0]).toMatchObject({
@@ -133,7 +133,7 @@ describe('Validation Service', () => {
                 const response = await request(app)
                     .post('/validate')
                     .send({
-                        schema: 'taglist/v1',
+                        schema: 'data/write/v1',
                         json: invalidTaglist,
                     })
                     .expect(400);
@@ -158,7 +158,7 @@ describe('Validation Service', () => {
                 const response = await request(app)
                     .post('/validate')
                     .send({
-                        schema: 'taglist/v1',
+                        schema: 'data/write/v1',
                         json: invalidTaglist,
                     })
                     .expect(400);
@@ -183,7 +183,7 @@ describe('Validation Service', () => {
                 const response = await request(app)
                     .post('/validate')
                     .send({
-                        schema: 'taglist/v1',
+                        schema: 'data/write/v1',
                         json: invalidTaglist,
                     })
                     .expect(400);
@@ -208,7 +208,7 @@ describe('Validation Service', () => {
                 const response = await request(app)
                     .post('/validate')
                     .send({
-                        schema: 'taglist/v1',
+                        schema: 'data/write/v1',
                         json: invalidTaglist,
                     })
                     .expect(400);
@@ -311,7 +311,7 @@ describe('Validation Service', () => {
             const response = await request(app)
                 .post('/validate')
                 .send({
-                    schema: 'taglist/v1',
+                    schema: 'data/write/v1',
                 })
                 .expect(400);
 
@@ -334,7 +334,7 @@ describe('Validation Service', () => {
                 valid: false,
                 error: 'Unknown schema: unknown/v1',
             });
-            expect(response.body.availableSchemas).toContain('taglist/v1');
+            expect(response.body.availableSchemas).toContain('data/write/v1');
             expect(response.body.availableSchemas).toContain('pubsub/head/v1');
         });
 
@@ -379,7 +379,7 @@ describe('Validation Service', () => {
             const response = await request(app)
                 .post('/validate')
                 .send({
-                    schema: 'taglist/v1',
+                    schema: 'data/write/v1',
                     json: validEncryptedTaglist,
                 })
                 .expect(200);

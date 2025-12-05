@@ -31,9 +31,16 @@ addFormats.default(ajv);
 // Convert Zod schemas from @my-mimisbrunnr/protocol to JSON Schema for AJV validation
 // Using Zod's native z.toJSONSchema() for conversion (Zod 4+)
 const schemas = {
-    'taglist/v1': z.toJSONSchema(EncryptedTagCollectionSchema, {
-        target: 'draft-7', // AJV uses JSON Schema Draft 7 by default
-    }),
+    'data/write/v1': z.toJSONSchema(
+        z.union([
+            EncryptedTagCollectionSchema,
+            UserManifestSchema,
+            DidDocumentSchema,
+        ]),
+        {
+            target: 'draft-7', // AJV uses JSON Schema Draft 7 by default
+        }
+    ),
 
     'pubsub/head/v1': {
         type: 'object',

@@ -88,7 +88,7 @@ export default defineBackground(() => {
                     }
                     case MessageType.PUBLISH_TO_IPFS: {
                         // Publish to IPFS and pin to Kubo via RPC API (Connection #2)
-                        const cid = await tagService.publishTagCollection();
+                        const cid = await tagService.publishUserManifest();
 
                         sendResponse<MessageType.PUBLISH_TO_IPFS>({ cid });
                         break;
@@ -111,7 +111,7 @@ export default defineBackground(() => {
                     }
                     case MessageType.IMPORT_FROM_IPFS: {
                         // Import tags into repository with specified mode
-                        const result = await tagService.importTagCollection(
+                        const result = await tagService.importUserManifest(
                             message.body.cid,
                             { mode: message.body.mode }
                         );
@@ -119,7 +119,18 @@ export default defineBackground(() => {
                         // Notify content script to refresh tags
                         messenger.sendMessageToTabs(MessageType.REFRESH_TAGS);
 
-                        sendResponse<MessageType.IMPORT_FROM_IPFS>(result);
+                        sendResponse<MessageType.IMPORT_FROM_IPFS>({
+                            imported: result.totalImported,
+                            total: result.totalTags,
+                        });
+                        break;
+                    }
+                    case MessageType.UPDATE_PUBLISHED_MANIFEST: {
+                        const cid = await tagService.updatePublishedManifest();
+
+                        sendResponse<MessageType.UPDATE_PUBLISHED_MANIFEST>({
+                            cid,
+                        });
                         break;
                     }
                     // Identity operations (MM-28)

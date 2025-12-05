@@ -130,7 +130,7 @@ end
 
 -- Validate JSON against schema via sidecar
 local function validate_schema(json_obj)
-    local success, err = validator.validate_schema(json_obj, "taglist/v1")
+    local success, err = validator.validate_schema(json_obj, "data/write/v1")
     if not success then
         validator.send_error(415, err)
         return false

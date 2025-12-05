@@ -92,7 +92,7 @@ end
 -- Validate JSON against schema via validation service
 -- Returns: success (boolean), error_message (optional)
 function _M.validate_schema(json_obj, schema_type)
-    schema_type = schema_type or "taglist/v1"
+    schema_type = schema_type or "data/write/v1"
 
     local httpc = http.new()
     httpc:set_timeout(VALIDATOR_TIMEOUT)

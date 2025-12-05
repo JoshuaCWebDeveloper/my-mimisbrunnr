@@ -78,7 +78,7 @@ describe('Security Facade Tests', () => {
             const response = await makeRequest('POST', '/validate', {
                 baseURL: VALIDATOR_URL,
                 data: {
-                    schema: 'taglist/v1',
+                    schema: 'data/write/v1',
                     json: validTaglist,
                 },
             });
@@ -91,7 +91,7 @@ describe('Security Facade Tests', () => {
             const response = await makeRequest('POST', '/validate', {
                 baseURL: VALIDATOR_URL,
                 data: {
-                    schema: 'taglist/v1',
+                    schema: 'data/write/v1',
                     json: invalidTaglist,
                 },
             });
@@ -120,7 +120,7 @@ describe('Security Facade Tests', () => {
             });
 
             expect(response.status).toBe(200);
-            expect(response.data.schemas).toContain('taglist/v1');
+            expect(response.data.schemas).toContain('data/write/v1');
             expect(response.data.schemas).toContain('pubsub/head/v1');
         });
     });
@@ -356,7 +356,7 @@ describe('Security Facade Tests', () => {
             const response = await makeRequest('POST', '/validate', {
                 baseURL: VALIDATOR_URL,
                 data: {
-                    schema: 'taglist/v1',
+                    schema: 'data/write/v1',
                     json: validTaglist,
                 },
             });
@@ -370,7 +370,7 @@ describe('Security Facade Tests', () => {
             const response = await makeRequest('POST', '/validate', {
                 baseURL: VALIDATOR_URL,
                 data: {
-                    schema: 'taglist/v1',
+                    schema: 'data/write/v1',
                     json: validTaglist,
                 },
             });

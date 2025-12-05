@@ -103,7 +103,7 @@ export const UserManifestSchema = PublishableRecordSchema.extend({
     encrypted: z.literal(false),
     handle: z.string().regex(/^@[a-zA-Z0-9_]{1,15}$/),
     did: z.string(),
-    collections: z.array(TagCollectionSchema),
+    collections: z.array(z.string()), // Array of CID strings referencing TagCollection documents
 });
 
 export type UserManifest = z.infer<typeof UserManifestSchema>;

@@ -75,7 +75,7 @@ Client → OpenResty Proxy → Validation Sidecar → Kubo IPFS
 
 **Supported Schemas:**
 
--   `taglist/v1` - Tag list validation
+-   `data/write/v1` - Data write validation
 -   `pubsub/head/v1` - Pubsub message validation
 
 ## Security Features
@@ -153,7 +153,7 @@ curl -X POST http://localhost:5001/api/v0/pin/add?arg=QmYjtig7VJQ6XsnUjqqJvj7QaM
 # Test validation sidecar
 curl -X POST http://localhost:3000/validate \
   -H "Content-Type: application/json" \
-  -d '{"schema":"taglist/v1","json":{"version":1,"handle":"@test","updated":1234567890,"tags":["test"]}}'
+  -d '{"schema":"data/write/v1","json":{"version":1,"handle":"@test","updated":1234567890,"tags":["test"]}}'
 
 # Test rate limiting
 for i in {1..100}; do curl -s http://localhost:5001/api/v0/version & done
