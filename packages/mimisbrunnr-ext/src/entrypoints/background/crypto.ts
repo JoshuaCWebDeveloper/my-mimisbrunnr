@@ -32,41 +32,6 @@ import { sha256 } from '@noble/hashes/sha2';
 import { bytesToHex } from '@noble/hashes/utils';
 
 // ============================================================================
-// Types
-// ============================================================================
-
-/**
- * W3C DID Core verification method
- */
-export interface VerificationMethod {
-    id: string;
-    type: 'Ed25519VerificationKey2018';
-    controller: string;
-    publicKeyMultibase: string;
-}
-
-/**
- * DID document service endpoint
- */
-export interface ServiceEndpoint {
-    id: string;
-    type: string;
-    serviceEndpoint: string;
-}
-
-/**
- * W3C DID Core document structure
- * Always published unencrypted to IPFS
- */
-export interface DIDDocument {
-    '@context': string[];
-    id: string;
-    verificationMethod: VerificationMethod[];
-    assertionMethod: string[];
-    service: ServiceEndpoint[];
-}
-
-// ============================================================================
 // Constants
 // ============================================================================
 

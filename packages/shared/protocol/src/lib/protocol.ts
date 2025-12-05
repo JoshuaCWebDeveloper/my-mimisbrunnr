@@ -24,27 +24,6 @@ export const PublishableRecordSchema = DbRowSchema.extend({
 export type PublishableRecord = z.infer<typeof PublishableRecordSchema>;
 
 /**
- * OrbitDB Discovery Record interface for cross-package communication
- * Used by both mimisbrunnr-ext and perpetual-node for interoperability
- */
-export type DiscoveryRecord = {
-    /** SHA-256 of lowercase handle */
-    lookupKey: string;
-    /** Original X.com handle */
-    handle: string;
-    /** IPNS key for mutable content */
-    ipnsKey: string;
-    /** DID identifier */
-    did: string;
-    /** Unix timestamp when first created */
-    createdAt: number;
-    /** Unix timestamp when last modified */
-    updatedAt: number;
-    /** Optional entry-level signature */
-    sig?: string;
-};
-
-/**
  * Tag schema for X.com user tagging
  * Used by mimisbrunnr-ext and validation-service
  */
@@ -143,30 +122,60 @@ export function isUserManifest(data: unknown): data is UserManifest {
     );
 }
 
-export const EncryptedUserManifestSchema = PublishableRecordSchema.extend({
-    version: z.literal(1),
-    encrypted: z.literal(true),
-    // decodes to UserManifestSchema
-    data: z.string(),
-    nonce: z.string(),
-    contentSalt: z.string(),
-    publicKey: z.string(),
+/**
+ * W3C DID Core verification method
+ */
+export const VerificationMethodSchema = z.object({
+    id: z.string(),
+    type: z.literal('Ed25519VerificationKey2018'),
+    controller: z.string(),
+    publicKeyMultibase: z.string(),
 });
 
-export type EncryptedUserManifest = z.infer<typeof EncryptedUserManifestSchema>;
+export type VerificationMethod = z.infer<typeof VerificationMethodSchema>;
 
 /**
- * Type guard for encrypted manifest
+ * DID document service endpoint
  */
-export function isEncryptedUserManifest(
-    data: unknown
-): data is EncryptedUserManifest {
-    return (
-        typeof data === 'object' &&
-        data !== null &&
-        'encrypted' in data &&
-        data.encrypted === true &&
-        'data' in data &&
-        'nonce' in data
-    );
-}
+export const ServiceEndpointSchema = z.object({
+    id: z.string(),
+    type: z.string(),
+    serviceEndpoint: z.string(),
+});
+
+export type ServiceEndpoint = z.infer<typeof ServiceEndpointSchema>;
+
+/**
+ * W3C DID Core document structure
+ * Always published unencrypted to IPFS
+ */
+export const DidDocumentSchema = z.object({
+    '@context': z.array(z.string()),
+    id: z.string(),
+    verificationMethod: z.array(VerificationMethodSchema),
+    assertionMethod: z.array(z.string()),
+    service: z.array(ServiceEndpointSchema),
+});
+
+export type DidDocument = z.infer<typeof DidDocumentSchema>;
+
+/**
+ * OrbitDB Discovery Record interface for cross-package communication
+ * Used by both mimisbrunnr-ext and perpetual-node for interoperability
+ */
+export type DiscoveryRecord = {
+    /** SHA-256 of lowercase handle */
+    lookupKey: string;
+    /** Original X.com handle */
+    handle: string;
+    /** IPNS key for mutable content */
+    ipnsKey: string;
+    /** DID identifier */
+    did: string;
+    /** Unix timestamp when first created */
+    createdAt: number;
+    /** Unix timestamp when last modified */
+    updatedAt: number;
+    /** Optional entry-level signature */
+    sig?: string;
+};

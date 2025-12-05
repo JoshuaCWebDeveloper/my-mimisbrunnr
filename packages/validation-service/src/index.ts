@@ -4,7 +4,11 @@ import addFormats from 'ajv-formats';
 import { createServer } from 'http';
 import log from 'loglevel';
 import * as z from 'zod';
-import { EncryptedTagCollectionSchema } from '@my-mimisbrunnr/protocol';
+import {
+    EncryptedTagCollectionSchema,
+    UserManifestSchema,
+    DidDocumentSchema,
+} from '@my-mimisbrunnr/protocol';
 import { unmarshalIPNSRecord } from 'ipns';
 import { validate as validateIpnsRecord } from 'ipns/validator';
 import { peerIdFromString } from '@libp2p/peer-id';
