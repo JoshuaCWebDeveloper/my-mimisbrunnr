@@ -417,4 +417,221 @@ describe('Validation Service', () => {
             expect(response.headers['access-control-allow-origin']).toBe('*');
         });
     });
+
+    describe('IPNS Record Validation', () => {
+        // Helper to create valid IPNS test data
+        async function createValidIpnsRecord() {
+            const { generateKeyPairFromSeed } = await import(
+                '@libp2p/crypto/keys'
+            );
+            const { createIPNSRecord, marshalIPNSRecord } = await import(
+                'ipns'
+            );
+            const { peerIdFromPublicKey } = await import('@libp2p/peer-id');
+            const { CID } = await import('multiformats/cid');
+
+            // Generate keypair
+            const seed = new Uint8Array(32);
+            crypto.getRandomValues(seed);
+            const privateKey = await generateKeyPairFromSeed('Ed25519', seed);
+            const peerId = peerIdFromPublicKey(privateKey.publicKey);
+
+            // Create IPNS record
+            const testCid = CID.parse(
+                'bafyreihyrpefhacm6kkp4ql6j6udakdit7g3dmkzfriqfykhjw6cad7lrm'
+            );
+            const ipnsRecord = await createIPNSRecord(
+                privateKey,
+                testCid,
+                0n,
+                86400000
+            );
+            const marshaledRecord = marshalIPNSRecord(ipnsRecord);
+
+            return {
+                peerId: peerId.toString(),
+                marshaledRecord: Buffer.from(marshaledRecord),
+                cid: testCid.toString(),
+            };
+        }
+
+        it('should validate a correctly signed IPNS record', async () => {
+            const { peerId, marshaledRecord, cid } =
+                await createValidIpnsRecord();
+
+            const response = await request(app)
+                .post(`/validate/ipns/${peerId}`)
+                .set('Content-Type', 'application/octet-stream')
+                .send(marshaledRecord)
+                .expect(200);
+
+            expect(response.body).toMatchObject({
+                valid: true,
+                peerId: peerId,
+                value: `/ipfs/${cid}`,
+            });
+            expect(response.body.sequence).toBeDefined();
+        });
+
+        it('should reject IPNS record with invalid peer ID format', async () => {
+            const { marshaledRecord } = await createValidIpnsRecord();
+
+            const response = await request(app)
+                .post('/validate/ipns/invalid-peer-id')
+                .set('Content-Type', 'application/octet-stream')
+                .send(marshaledRecord)
+                .expect(400);
+
+            expect(response.body).toMatchObject({
+                valid: false,
+            });
+            expect(response.body.error).toContain('Invalid Peer ID format');
+        });
+
+        it('should reject IPNS record with missing peer ID', async () => {
+            const { marshaledRecord } = await createValidIpnsRecord();
+
+            const response = await request(app)
+                .post('/validate/ipns/')
+                .set('Content-Type', 'application/octet-stream')
+                .send(marshaledRecord)
+                .expect(404);
+
+            expect(response.body).toMatchObject({
+                error: 'Not found',
+            });
+        });
+
+        it('should reject request with missing body', async () => {
+            const { peerId } = await createValidIpnsRecord();
+
+            const response = await request(app)
+                .post(`/validate/ipns/${peerId}`)
+                .set('Content-Type', 'application/octet-stream')
+                .expect(400);
+
+            expect(response.body.valid).toBe(false);
+            expect(response.body.error).toBeDefined();
+            // Error could be either about missing body or unmarshal failure
+            expect(
+                response.body.error.includes('Missing or invalid') ||
+                    response.body.error.includes('Failed to unmarshal')
+            ).toBe(true);
+        });
+
+        it('should reject malformed IPNS record data', async () => {
+            const { peerId } = await createValidIpnsRecord();
+            const invalidRecord = Buffer.from('invalid-ipns-record-data');
+
+            const response = await request(app)
+                .post(`/validate/ipns/${peerId}`)
+                .set('Content-Type', 'application/octet-stream')
+                .send(invalidRecord)
+                .expect(400);
+
+            expect(response.body).toMatchObject({
+                valid: false,
+            });
+            expect(response.body.error).toContain(
+                'Failed to unmarshal IPNS record'
+            );
+        });
+
+        it('should reject IPNS record with mismatched peer ID (signature validation failure)', async () => {
+            const { marshaledRecord } = await createValidIpnsRecord();
+            const { peerId: differentPeerId } = await createValidIpnsRecord();
+
+            // Try to validate record signed by one peer ID using a different peer ID
+            const response = await request(app)
+                .post(`/validate/ipns/${differentPeerId}`)
+                .set('Content-Type', 'application/octet-stream')
+                .send(marshaledRecord)
+                .expect(400);
+
+            expect(response.body).toMatchObject({
+                valid: false,
+            });
+            expect(response.body.error).toContain(
+                'IPNS record validation failed'
+            );
+        });
+
+        it('should reject IPNS record with wrong content type', async () => {
+            const { peerId, marshaledRecord } = await createValidIpnsRecord();
+
+            // Send as JSON instead of octet-stream
+            const response = await request(app)
+                .post(`/validate/ipns/${peerId}`)
+                .set('Content-Type', 'application/json')
+                .send({ data: marshaledRecord.toString('base64') })
+                .expect(400);
+
+            expect(response.body).toMatchObject({
+                valid: false,
+                error: 'Missing or invalid IPNS record in request body',
+            });
+        });
+
+        it('should handle empty request body', async () => {
+            const { peerId } = await createValidIpnsRecord();
+
+            const response = await request(app)
+                .post(`/validate/ipns/${peerId}`)
+                .set('Content-Type', 'application/octet-stream')
+                .send(Buffer.alloc(0))
+                .expect(400);
+
+            expect(response.body.valid).toBe(false);
+            expect(response.body.error).toBeDefined();
+            // Error could be either about missing body or unmarshal failure
+            expect(
+                response.body.error.includes('Missing or invalid') ||
+                    response.body.error.includes('Failed to unmarshal')
+            ).toBe(true);
+        });
+
+        it('should validate multiple IPNS records sequentially', async () => {
+            // Test that the endpoint can handle multiple validations
+            const record1 = await createValidIpnsRecord();
+            const record2 = await createValidIpnsRecord();
+            const record3 = await createValidIpnsRecord();
+
+            const response1 = await request(app)
+                .post(`/validate/ipns/${record1.peerId}`)
+                .set('Content-Type', 'application/octet-stream')
+                .send(record1.marshaledRecord)
+                .expect(200);
+
+            const response2 = await request(app)
+                .post(`/validate/ipns/${record2.peerId}`)
+                .set('Content-Type', 'application/octet-stream')
+                .send(record2.marshaledRecord)
+                .expect(200);
+
+            const response3 = await request(app)
+                .post(`/validate/ipns/${record3.peerId}`)
+                .set('Content-Type', 'application/octet-stream')
+                .send(record3.marshaledRecord)
+                .expect(200);
+
+            expect(response1.body.valid).toBe(true);
+            expect(response2.body.valid).toBe(true);
+            expect(response3.body.valid).toBe(true);
+        });
+
+        it('should complete IPNS validation quickly', async () => {
+            const { peerId, marshaledRecord } = await createValidIpnsRecord();
+
+            const start = Date.now();
+            await request(app)
+                .post(`/validate/ipns/${peerId}`)
+                .set('Content-Type', 'application/octet-stream')
+                .send(marshaledRecord)
+                .expect(200);
+            const duration = Date.now() - start;
+
+            // IPNS validation should be fast (under 100ms)
+            expect(duration).toBeLessThan(100);
+        });
+    });
 });
