@@ -269,7 +269,7 @@ describe('IdentityService', () => {
         });
     });
 
-    describe('encryptWithCurrentIdentity', () => {
+    describe('encryptContent', () => {
         it('should encrypt content when identity is unlocked', async () => {
             // Arrange - Create and unlock identity
             mockRepository.hasIdentity.mockResolvedValue(false);
@@ -282,9 +282,7 @@ describe('IdentityService', () => {
             const testContent = { test: 'data', nested: { value: 123 } };
 
             // Act
-            const result = await identityService.encryptWithCurrentIdentity(
-                testContent
-            );
+            const result = await identityService.encryptContent(testContent);
 
             // Assert
             expect(result.encryptedData).toBeTruthy();
@@ -298,12 +296,12 @@ describe('IdentityService', () => {
         it('should reject if identity is not unlocked', async () => {
             // Act & Assert
             await expect(
-                identityService.encryptWithCurrentIdentity({ test: 'data' })
+                identityService.encryptContent({ test: 'data' })
             ).rejects.toThrow('Identity not unlocked');
         });
     });
 
-    describe('decryptWithCurrentIdentity', () => {
+    describe('decryptContent', () => {
         it('should decrypt content when identity is unlocked', async () => {
             // Arrange - Create identity and encrypt some data
             mockRepository.hasIdentity.mockResolvedValue(false);
@@ -314,12 +312,10 @@ describe('IdentityService', () => {
             await identityService.createIdentity(mockPassphrase, mockHandle);
 
             const testContent = { test: 'data', nested: { value: 123 } };
-            const encrypted = await identityService.encryptWithCurrentIdentity(
-                testContent
-            );
+            const encrypted = await identityService.encryptContent(testContent);
 
             // Act - Decrypt the data
-            const result = await identityService.decryptWithCurrentIdentity(
+            const result = await identityService.decryptContent(
                 encrypted.encryptedData,
                 encrypted.nonce,
                 encrypted.salt
@@ -332,7 +328,7 @@ describe('IdentityService', () => {
         it('should reject if identity is not unlocked', async () => {
             // Act & Assert
             await expect(
-                identityService.decryptWithCurrentIdentity(
+                identityService.decryptContent(
                     'encrypted-data',
                     'nonce',
                     'salt'

@@ -581,7 +581,7 @@ export class IdentityService {
      * This method is used by other services (e.g., IpfsService) to encrypt
      * content for publishing
      */
-    async encryptWithCurrentIdentity(content: unknown): Promise<{
+    async encryptContent(content: unknown): Promise<{
         encryptedData: string;
         nonce: string;
         salt: string;
@@ -616,7 +616,7 @@ export class IdentityService {
      * @remarks
      * This method is used by other services to decrypt retrieved content
      */
-    async decryptWithCurrentIdentity<T = unknown>(
+    async decryptContent<T = unknown>(
         encryptedData: string,
         nonce: string,
         salt: string
