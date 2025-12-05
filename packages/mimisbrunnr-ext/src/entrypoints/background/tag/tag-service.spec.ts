@@ -58,13 +58,15 @@ const mockIpfsService = {
 const mockIdentityService = {
     getCurrent: vi.fn(),
     isUnlocked: vi.fn(),
-    encryptWithCurrentIdentity: vi.fn(),
-    decryptWithCurrentIdentity: vi.fn(),
+    encryptContent: vi.fn(),
+    decryptContent: vi.fn(),
+    publishDidDocument: vi.fn(),
 } as unknown as {
     getCurrent: Mock;
     isUnlocked: Mock;
-    encryptWithCurrentIdentity: Mock;
-    decryptWithCurrentIdentity: Mock;
+    encryptContent: Mock;
+    decryptContent: Mock;
+    publishDidDocument: Mock;
 } & IdentityService;
 
 describe('TagService', () => {
@@ -331,7 +333,7 @@ describe('TagService', () => {
                 mockIpfsService.retrieveObject.mockResolvedValue(
                     encryptedCollection
                 );
-                mockIdentityService.decryptWithCurrentIdentity.mockResolvedValue(
+                mockIdentityService.decryptContent.mockResolvedValue(
                     plainCollection
                 );
 
@@ -344,9 +346,11 @@ describe('TagService', () => {
                 expect(mockIpfsService.retrieveObject).toHaveBeenCalledWith(
                     'QmTest123'
                 );
-                expect(
-                    mockIdentityService.decryptWithCurrentIdentity
-                ).toHaveBeenCalledWith('encrypted-data', 'nonce', 'salt');
+                expect(mockIdentityService.decryptContent).toHaveBeenCalledWith(
+                    'encrypted-data',
+                    'nonce',
+                    'salt'
+                );
                 expect(result).toEqual(plainCollection);
             });
         });
@@ -378,7 +382,7 @@ describe('TagService', () => {
                     'QmTest123'
                 );
                 expect(
-                    mockIdentityService.decryptWithCurrentIdentity
+                    mockIdentityService.decryptContent
                 ).not.toHaveBeenCalled();
                 expect(result).toEqual(plainCollection);
             });

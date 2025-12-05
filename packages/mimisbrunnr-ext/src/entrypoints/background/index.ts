@@ -15,7 +15,7 @@ export default defineBackground(() => {
     // Initialize IPFS service (MM-27)
     const ipfsService = new IpfsService();
 
-    const identityService = new IdentityService();
+    const identityService = new IdentityService(ipfsService);
 
     const tagService = new TagService(ipfsService, identityService);
 

@@ -25,6 +25,7 @@
 
 import log from 'loglevel';
 import { IdentityRepository } from './identity-repository.js';
+import { DidService } from './did-service.js';
 import {
     encryptContent,
     decryptContent,
@@ -35,7 +36,8 @@ import {
     deriveIdentitySeed,
     generateKeypairFromSeed,
 } from '../crypto.js';
-import { createDbRow, DbRow } from '@my-mimisbrunnr/protocol';
+import { createDbRow, DbRow, DidDocument } from '@my-mimisbrunnr/protocol';
+import type { IpfsService } from '../ipfs/ipfs-service.js';
 
 /**
  * Minimum passphrase length
@@ -105,6 +107,11 @@ export class IdentityService {
     private identityRepository = new IdentityRepository();
     private currentIdentity: Identity | null = null;
     private currentPassphrase: string | null = null;
+    private didService: DidService | null = null;
+
+    constructor(ipfsService: IpfsService) {
+        this.didService = new DidService(ipfsService);
+    }
 
     /**
      * Close the service and clear sensitive data
@@ -632,5 +639,81 @@ export class IdentityService {
             this.currentPassphrase,
             saltBytes
         );
+    }
+
+    // ========================================================================
+    // DID Operations (MM-29)
+    // ========================================================================
+
+    private getDidService(): DidService {
+        if (!this.didService) {
+            throw new Error('DID service not initialized');
+        }
+        return this.didService;
+    }
+
+    /**
+     * Build DID document for current identity
+     *
+     * @param manifestCid - CID of encrypted user manifest
+     * @param proofUrl - Optional tweet proof URL
+     * @returns Complete DID document
+     * @throws Error if identity not unlocked or DID service not initialized
+     *
+     * @remarks
+     * This is a convenience wrapper around DidService.buildDidDocument
+     * that uses the current identity.
+     */
+    buildDidDocument(manifestCid: string, proofUrl?: string): DidDocument {
+        const identity = this.getCurrent();
+
+        return this.getDidService().buildDidDocument(
+            identity,
+            manifestCid,
+            proofUrl
+        );
+    }
+
+    /**
+     * Publish DID document for current identity to IPFS and IPNS
+     *
+     * @param manifestCid - CID of encrypted user manifest
+     * @param proofUrl - Optional tweet proof URL
+     * @returns Object containing DID document CID and IPNS key
+     * @throws Error if identity not unlocked or DID service not initialized
+     *
+     * @remarks
+     * This is the primary method for publishing identity to the decentralized network.
+     * It coordinates:
+     * 1. Building the DID document
+     * 2. Publishing to IPFS (with pinning)
+     * 3. Publishing to IPNS for mutable addressing
+     */
+    async publishDidDocument(
+        manifestCid: string,
+        proofUrl?: string
+    ): Promise<{ didDocumentCid: string; ipnsKey: string }> {
+        const identity = this.getCurrent();
+
+        return this.getDidService().publishDidDocument(
+            identity,
+            manifestCid,
+            proofUrl
+        );
+    }
+
+    /**
+     * Retrieve DID document from IPFS/IPNS
+     *
+     * @param cidOrIpns - CID or IPNS name of DID document
+     * @returns DID document
+     * @throws Error if DID service not initialized
+     *
+     * @remarks
+     * Can be called without an unlocked identity since it's retrieving
+     * someone else's DID document.
+     */
+    async retrieveDidDocument(cidOrIpns: string): Promise<DidDocument> {
+        return this.getDidService().retrieveDidDocument(cidOrIpns);
     }
 }
