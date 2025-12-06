@@ -389,10 +389,14 @@ export class IpfsService {
 
             // Publish the marshaled IPNS record to the DHT via Kubo
             // This goes through validation-proxy which validates via validation-service
-            await this.kuboClient.routing.put(
+            // routing.put returns an async iterable - we need to consume it
+            for await (const event of this.kuboClient.routing.put(
                 `/ipns/${peerIdString}`,
                 marshaledRecord
-            );
+            )) {
+                // Log events from the routing system
+                log.debug('[IpfsService] Routing event:', event);
+            }
 
             log.info(
                 '[IpfsService] IPNS published successfully to DHT:',
