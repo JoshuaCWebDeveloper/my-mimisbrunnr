@@ -68,11 +68,12 @@ local function validate_ipns_record(peer_id, record_bytes)
     end
 
     -- Send IPNS record to validation service for verification
+    local headers = ngx.req.get_headers()
     local res, err = httpc:request({
         method = "POST",
         path = "/validate/ipns/" .. peer_id,
         headers = {
-            ["Content-Type"] = "application/octet-stream",
+            ["Content-Type"] = headers["Content-Type"],
             ["User-Agent"] = "nginx-security-facade/1.0"
         },
         body = record_bytes
@@ -88,14 +89,7 @@ local function validate_ipns_record(peer_id, record_bytes)
     httpc:close()
 
     if res.status ~= 200 then
-        local error_msg = "IPNS record validation failed"
-        if response_body then
-            local success, response_json = pcall(cjson.decode, response_body)
-            if success and response_json.error then
-                error_msg = response_json.error
-            end
-        end
-        validator.send_error(400, error_msg)
+        validator.send_error(400, response_body)
         return false
     end
 
@@ -113,24 +107,18 @@ local function forward_to_kubo(peer_id, record_bytes)
         return false
     end
 
-    -- Create multipart/form-data body with value-file field
-    -- Kubo's routing/put endpoint expects the record in a multipart field
-    local boundary = "----WebKitFormBoundary" .. ngx.time()
-    local multipart_body = "--" .. boundary .. "\r\n" ..
-        "Content-Disposition: form-data; name=\"value-file\"; filename=\"record\"\r\n" ..
-        "Content-Type: application/octet-stream\r\n\r\n" ..
-        record_bytes .. "\r\n" ..
-        "--" .. boundary .. "--\r\n"
-
     -- Forward to Kubo's routing/put endpoint
+    local headers = ngx.req.get_headers()
+    local query_string = ngx.var.args and ("?" .. ngx.var.args) or ""
     local res, err = httpc:request({
         method = "POST",
-        path = "/api/v0/routing/put?arg=/ipns/" .. peer_id,
+        path = "/api/v0/routing/put" .. query_string,
         headers = {
-            ["Content-Type"] = "multipart/form-data; boundary=" .. boundary,
+            ["Content-Type"] = headers["Content-Type"],
             ["User-Agent"] = "nginx-security-facade/1.0"
         },
-        body = multipart_body
+        body = record_bytes
+
     })
 
     if not res then
@@ -180,14 +168,12 @@ local function main()
         return
     end
 
-    -- All validations passed
-    -- Note: We don't actually forward to Kubo's DHT because the record is signed with
-    -- a different peer ID than Kubo's own peer ID. In a real implementation, this would
-    -- be stored in a DHT or database for later retrieval.
-    -- For now, we just return success after validation.
-    ngx.status = 200
-    ngx.say('{"Message":"IPNS record validated and accepted"}')
-    ngx.log(ngx.INFO, "Successful IPNS record validation: peer_id=" .. peer_id .. " ip=" .. client_ip)
+    -- All validations passed - forward to Kubo DHT
+    if not forward_to_kubo(peer_id, record_bytes) then
+        return
+    end
+
+    ngx.log(ngx.INFO, "Successful IPNS record publish: peer_id=" .. peer_id .. " ip=" .. client_ip)
 end
 
 -- Set response headers
