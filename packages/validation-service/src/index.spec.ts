@@ -455,14 +455,52 @@ describe('Validation Service', () => {
             };
         }
 
+        // Helper to create multipart/form-data body
+        function createMultipartBody(fileBuffer: Buffer): {
+            body: Buffer;
+            boundary: string;
+        } {
+            const boundary = `----WebKitFormBoundary${Date.now()}`;
+            const parts: Buffer[] = [];
+
+            // Start boundary
+            parts.push(Buffer.from(`--${boundary}\r\n`));
+
+            // Content-Disposition header with 'file' field name
+            parts.push(
+                Buffer.from(
+                    'Content-Disposition: form-data; name="file"; filename="record"\r\n'
+                )
+            );
+            parts.push(
+                Buffer.from('Content-Type: application/octet-stream\r\n\r\n')
+            );
+
+            // File content
+            parts.push(fileBuffer);
+
+            // End boundary
+            parts.push(Buffer.from(`\r\n--${boundary}--\r\n`));
+
+            return {
+                body: Buffer.concat(parts),
+                boundary,
+            };
+        }
+
         it('should validate a correctly signed IPNS record', async () => {
             const { peerId, marshaledRecord, cid } =
                 await createValidIpnsRecord();
 
+            const { body, boundary } = createMultipartBody(marshaledRecord);
+
             const response = await request(app)
                 .post(`/validate/ipns/${peerId}`)
-                .set('Content-Type', 'application/octet-stream')
-                .send(marshaledRecord)
+                .set(
+                    'Content-Type',
+                    `multipart/form-data; boundary=${boundary}`
+                )
+                .send(body)
                 .expect(200);
 
             expect(response.body).toMatchObject({
@@ -476,10 +514,15 @@ describe('Validation Service', () => {
         it('should reject IPNS record with invalid peer ID format', async () => {
             const { marshaledRecord } = await createValidIpnsRecord();
 
+            const { body, boundary } = createMultipartBody(marshaledRecord);
+
             const response = await request(app)
                 .post('/validate/ipns/invalid-peer-id')
-                .set('Content-Type', 'application/octet-stream')
-                .send(marshaledRecord)
+                .set(
+                    'Content-Type',
+                    `multipart/form-data; boundary=${boundary}`
+                )
+                .send(body)
                 .expect(400);
 
             expect(response.body).toMatchObject({
@@ -491,10 +534,15 @@ describe('Validation Service', () => {
         it('should reject IPNS record with missing peer ID', async () => {
             const { marshaledRecord } = await createValidIpnsRecord();
 
+            const { body, boundary } = createMultipartBody(marshaledRecord);
+
             const response = await request(app)
                 .post('/validate/ipns/')
-                .set('Content-Type', 'application/octet-stream')
-                .send(marshaledRecord)
+                .set(
+                    'Content-Type',
+                    `multipart/form-data; boundary=${boundary}`
+                )
+                .send(body)
                 .expect(404);
 
             expect(response.body).toMatchObject({
@@ -507,26 +555,25 @@ describe('Validation Service', () => {
 
             const response = await request(app)
                 .post(`/validate/ipns/${peerId}`)
-                .set('Content-Type', 'application/octet-stream')
                 .expect(400);
 
             expect(response.body.valid).toBe(false);
-            expect(response.body.error).toBeDefined();
-            // Error could be either about missing body or unmarshal failure
-            expect(
-                response.body.error.includes('Missing or invalid') ||
-                    response.body.error.includes('Failed to unmarshal')
-            ).toBe(true);
+            expect(response.body.error).toContain('Empty request body');
         });
 
         it('should reject malformed IPNS record data', async () => {
             const { peerId } = await createValidIpnsRecord();
             const invalidRecord = Buffer.from('invalid-ipns-record-data');
 
+            const { body, boundary } = createMultipartBody(invalidRecord);
+
             const response = await request(app)
                 .post(`/validate/ipns/${peerId}`)
-                .set('Content-Type', 'application/octet-stream')
-                .send(invalidRecord)
+                .set(
+                    'Content-Type',
+                    `multipart/form-data; boundary=${boundary}`
+                )
+                .send(body)
                 .expect(400);
 
             expect(response.body).toMatchObject({
@@ -541,11 +588,16 @@ describe('Validation Service', () => {
             const { marshaledRecord } = await createValidIpnsRecord();
             const { peerId: differentPeerId } = await createValidIpnsRecord();
 
+            const { body, boundary } = createMultipartBody(marshaledRecord);
+
             // Try to validate record signed by one peer ID using a different peer ID
             const response = await request(app)
                 .post(`/validate/ipns/${differentPeerId}`)
-                .set('Content-Type', 'application/octet-stream')
-                .send(marshaledRecord)
+                .set(
+                    'Content-Type',
+                    `multipart/form-data; boundary=${boundary}`
+                )
+                .send(body)
                 .expect(400);
 
             expect(response.body).toMatchObject({
@@ -557,19 +609,20 @@ describe('Validation Service', () => {
         });
 
         it('should reject IPNS record with wrong content type', async () => {
-            const { peerId, marshaledRecord } = await createValidIpnsRecord();
+            const { peerId } = await createValidIpnsRecord();
 
-            // Send as JSON instead of octet-stream
+            // Send as JSON instead of multipart
             const response = await request(app)
                 .post(`/validate/ipns/${peerId}`)
                 .set('Content-Type', 'application/json')
-                .send({ data: marshaledRecord.toString('base64') })
+                .send({ data: 'some-data' })
                 .expect(400);
 
             expect(response.body).toMatchObject({
                 valid: false,
-                error: 'Missing or invalid IPNS record in request body',
             });
+            // JSON body won't be captured by express.raw for multipart, so will be empty
+            expect(response.body.error).toContain('Empty request body');
         });
 
         it('should handle empty request body', async () => {
@@ -577,17 +630,10 @@ describe('Validation Service', () => {
 
             const response = await request(app)
                 .post(`/validate/ipns/${peerId}`)
-                .set('Content-Type', 'application/octet-stream')
-                .send(Buffer.alloc(0))
                 .expect(400);
 
             expect(response.body.valid).toBe(false);
-            expect(response.body.error).toBeDefined();
-            // Error could be either about missing body or unmarshal failure
-            expect(
-                response.body.error.includes('Missing or invalid') ||
-                    response.body.error.includes('Failed to unmarshal')
-            ).toBe(true);
+            expect(response.body.error).toContain('Empty request body');
         });
 
         it('should validate multiple IPNS records sequentially', async () => {
@@ -596,22 +642,41 @@ describe('Validation Service', () => {
             const record2 = await createValidIpnsRecord();
             const record3 = await createValidIpnsRecord();
 
+            const { body: body1, boundary: boundary1 } = createMultipartBody(
+                record1.marshaledRecord
+            );
+            const { body: body2, boundary: boundary2 } = createMultipartBody(
+                record2.marshaledRecord
+            );
+            const { body: body3, boundary: boundary3 } = createMultipartBody(
+                record3.marshaledRecord
+            );
+
             const response1 = await request(app)
                 .post(`/validate/ipns/${record1.peerId}`)
-                .set('Content-Type', 'application/octet-stream')
-                .send(record1.marshaledRecord)
+                .set(
+                    'Content-Type',
+                    `multipart/form-data; boundary=${boundary1}`
+                )
+                .send(body1)
                 .expect(200);
 
             const response2 = await request(app)
                 .post(`/validate/ipns/${record2.peerId}`)
-                .set('Content-Type', 'application/octet-stream')
-                .send(record2.marshaledRecord)
+                .set(
+                    'Content-Type',
+                    `multipart/form-data; boundary=${boundary2}`
+                )
+                .send(body2)
                 .expect(200);
 
             const response3 = await request(app)
                 .post(`/validate/ipns/${record3.peerId}`)
-                .set('Content-Type', 'application/octet-stream')
-                .send(record3.marshaledRecord)
+                .set(
+                    'Content-Type',
+                    `multipart/form-data; boundary=${boundary3}`
+                )
+                .send(body3)
                 .expect(200);
 
             expect(response1.body.valid).toBe(true);
@@ -622,11 +687,16 @@ describe('Validation Service', () => {
         it('should complete IPNS validation quickly', async () => {
             const { peerId, marshaledRecord } = await createValidIpnsRecord();
 
+            const { body, boundary } = createMultipartBody(marshaledRecord);
+
             const start = Date.now();
             await request(app)
                 .post(`/validate/ipns/${peerId}`)
-                .set('Content-Type', 'application/octet-stream')
-                .send(marshaledRecord)
+                .set(
+                    'Content-Type',
+                    `multipart/form-data; boundary=${boundary}`
+                )
+                .send(body)
                 .expect(200);
             const duration = Date.now() - start;
 

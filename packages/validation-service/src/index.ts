@@ -12,11 +12,11 @@ import {
 import { unmarshalIPNSRecord } from 'ipns';
 import { validate as validateIpnsRecord } from 'ipns/validator';
 import { peerIdFromString } from '@libp2p/peer-id';
+import { extractFilePart } from './extract-file-part.js';
 
 // Configure logging
 log.setLevel((process.env.LOG_LEVEL as log.LogLevelDesc) || 'info');
 
-const app = express();
 const port = process.env.VALIDATOR_PORT || 3010;
 
 // Configure AJV with strict validation
@@ -81,9 +81,7 @@ for (const [schemaId, schema] of Object.entries(schemas)) {
     }
 }
 
-// Middleware
-app.use(express.json({ limit: '1mb' }));
-app.use(express.raw({ type: 'application/octet-stream', limit: '16kb' }));
+const app = express();
 
 // access logging
 app.use((req, res, next) => {
@@ -95,6 +93,7 @@ app.use((req, res, next) => {
     return next();
 });
 
+// CORS middleware
 app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -105,6 +104,130 @@ app.use((req, res, next) => {
     return next();
 });
 
+// IPNS record validation endpoint
+// Expects multipart/form-data with 'file' field containing the marshaled IPNS record
+app.post(
+    '/validate/ipns/:peerId',
+    express.raw({ type: 'multipart/form-data', limit: '16kb' }),
+    async (req: Request, res: Response) => {
+        try {
+            const { peerId: peerIdString } = req.params;
+
+            // Validate request
+            if (!peerIdString) {
+                return res.status(400).json({
+                    valid: false,
+                    error: 'Missing peerId parameter',
+                });
+            }
+
+            const rawBody = req.body as Buffer;
+
+            if (!rawBody || !rawBody.length) {
+                return res.status(400).json({
+                    valid: false,
+                    error: 'Empty request body',
+                });
+            }
+
+            const file = extractFilePart(
+                rawBody,
+                req.headers['content-type'] as string
+            );
+
+            log.info(
+                `IPNS validation request: peerId=${peerIdString}, raw body size=${rawBody?.length}, content-type=${req.headers['content-type']}, file size=${file?.length}`
+            );
+
+            if (!file) {
+                return res.status(400).json({
+                    valid: false,
+                    error: 'Missing file part in multipart/form-data',
+                    debug: {
+                        filePresent: !!file,
+                        contentType: req.headers['content-type'],
+                    },
+                });
+            }
+
+            const marshaledRecord = file;
+
+            // Parse Peer ID to get public key
+            let peerId;
+            try {
+                peerId = peerIdFromString(peerIdString);
+            } catch (error) {
+                return res.status(400).json({
+                    valid: false,
+                    error: `Invalid Peer ID format: ${
+                        error instanceof Error ? error.message : 'unknown error'
+                    }`,
+                });
+            }
+
+            if (!peerId.publicKey) {
+                return res.status(400).json({
+                    valid: false,
+                    error: 'Peer ID has no public key',
+                });
+            }
+
+            // Unmarshal IPNS record
+            let ipnsRecord;
+            try {
+                ipnsRecord = unmarshalIPNSRecord(
+                    new Uint8Array(marshaledRecord)
+                );
+            } catch (error) {
+                return res.status(400).json({
+                    valid: false,
+                    error: `Failed to unmarshal IPNS record: ${error}`,
+                });
+            }
+
+            // Validate IPNS record signature against the public key
+            try {
+                await validateIpnsRecord(
+                    peerId.publicKey,
+                    new Uint8Array(marshaledRecord)
+                );
+            } catch (error) {
+                return res.status(400).json({
+                    valid: false,
+                    error: `IPNS record validation failed: ${
+                        error instanceof Error ? error.message : 'unknown error'
+                    }`,
+                });
+            }
+
+            // All validations passed
+            log.info(
+                `✓ IPNS record validated successfully: peerId=${peerIdString}, value=${ipnsRecord.value}, sequence=${ipnsRecord.sequence}`
+            );
+
+            return res.json({
+                valid: true,
+                peerId: peerIdString,
+                value: ipnsRecord.value.toString(),
+                sequence: ipnsRecord.sequence.toString(),
+            });
+        } catch (error) {
+            log.error('IPNS validation error:', error);
+            return res.status(500).json({
+                valid: false,
+                error: 'Internal validation error',
+                message:
+                    error instanceof Error ? error.message : 'Unknown error',
+            });
+        }
+    }
+);
+
+// JSON endpoints
+
+// Middleware
+app.use(express.json({ limit: '1mb' }));
+
 // Health check endpoint
 app.get('/health', (_req: Request, res: Response) => {
     res.json({
@@ -113,109 +236,6 @@ app.get('/health', (_req: Request, res: Response) => {
         schemas: Object.keys(schemas),
         timestamp: Date.now(),
     });
-});
-
-// IPNS record validation endpoint
-app.post('/validate/ipns/:peerId', async (req: Request, res: Response) => {
-    try {
-        const { peerId: peerIdString } = req.params;
-        const marshaledRecord = req.body;
-
-        // Validate request
-        if (!peerIdString) {
-            return res.status(400).json({
-                valid: false,
-                error: 'Missing peerId parameter',
-            });
-        }
-
-        log.info(
-            `IPNS validation request: peerId=${peerIdString}, body type=${typeof marshaledRecord}, is Buffer=${
-                marshaledRecord instanceof Buffer
-            }, length=${marshaledRecord?.length}, content-type=${
-                req.headers['content-type']
-            }`
-        );
-
-        if (!marshaledRecord || !(marshaledRecord instanceof Buffer)) {
-            return res.status(400).json({
-                valid: false,
-                error: 'Missing or invalid IPNS record in request body',
-                debug: {
-                    bodyType: typeof marshaledRecord,
-                    isBuffer: marshaledRecord instanceof Buffer,
-                    length: marshaledRecord?.length,
-                },
-            });
-        }
-
-        // Parse Peer ID to get public key
-        let peerId;
-        try {
-            peerId = peerIdFromString(peerIdString);
-        } catch (error) {
-            return res.status(400).json({
-                valid: false,
-                error: `Invalid Peer ID format: ${
-                    error instanceof Error ? error.message : 'unknown error'
-                }`,
-            });
-        }
-
-        if (!peerId.publicKey) {
-            return res.status(400).json({
-                valid: false,
-                error: 'Peer ID has no public key',
-            });
-        }
-
-        // Unmarshal IPNS record
-        let ipnsRecord;
-        try {
-            ipnsRecord = unmarshalIPNSRecord(new Uint8Array(marshaledRecord));
-        } catch (error) {
-            return res.status(400).json({
-                valid: false,
-                error: `Failed to unmarshal IPNS record: ${
-                    error instanceof Error ? error.message : 'unknown error'
-                }`,
-            });
-        }
-
-        // Validate IPNS record signature against the public key
-        try {
-            await validateIpnsRecord(
-                peerId.publicKey,
-                new Uint8Array(marshaledRecord)
-            );
-        } catch (error) {
-            return res.status(400).json({
-                valid: false,
-                error: `IPNS record validation failed: ${
-                    error instanceof Error ? error.message : 'unknown error'
-                }`,
-            });
-        }
-
-        // All validations passed
-        log.info(
-            `✓ IPNS record validated successfully: peerId=${peerIdString}, value=${ipnsRecord.value}, sequence=${ipnsRecord.sequence}`
-        );
-
-        return res.json({
-            valid: true,
-            peerId: peerIdString,
-            value: ipnsRecord.value.toString(),
-            sequence: ipnsRecord.sequence.toString(),
-        });
-    } catch (error) {
-        log.error('IPNS validation error:', error);
-        return res.status(500).json({
-            valid: false,
-            error: 'Internal validation error',
-            message: error instanceof Error ? error.message : 'Unknown error',
-        });
-    }
 });
 
 // Schema validation endpoint
