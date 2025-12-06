@@ -13,8 +13,11 @@ function _M.is_valid_cid(cid)
     end
 
     -- CIDv0: "Qm" + 44 base58btc chars
-    if string.match(cid, "^Qm[1-9A-HJ-NP-Za-km-z]{44}$") then
-        return true
+    if string.match(cid, "^Qm[1-9A-HJ-NP-Za-km-z]+$") then
+        local len = #cid
+        if len == 46 then
+            return true
+        end
     end
 
     -- CIDv1 base32 (lowercase, as Helia uses)
@@ -38,30 +41,33 @@ function _M.is_valid_ipns_peer_id(peer_id)
     local cid = peer_id
     
     -- CIDv0: "Qm" + exactly 44 base58btc chars (46 total)
-    if string.match(cid, "^Qm[1-9A-HJ-NP-Za-km-z]{44}$") then
-        return true
+    if string.match(cid, "^Qm[1-9A-HJ-NP-Za-km-z]+$") then
+        local len = #cid
+        if len == 46 then
+            return true
+        end
     end
     
     -- CIDv1 Base36: starts with "12D3KooW" + base36 chars (59+ chars typical)
-    if string.match(cid, "^12D3KooW[A-Za-z2-9]{44,}$") then
+    if string.match(cid, "^12D3KooW[A-Za-z2-9]+$") then
         local len = #cid
-        if len >= 59 and len <= 100 then
+        if len >= 52 then
             return true
         end
     end
     
     -- CIDv1 Base32: "bafk" + base32 chars (lowercase, ~59 chars typical)
-    if string.match(cid, "^bafk[a-z2-7]{52,}$") then
+    if string.match(cid, "^bafk[a-z2-7]+$") then
         local len = #cid
-        if len >= 59 and len <= 100 then
+        if len >= 56 and len <= 100 then
             return true
         end
     end
     
     -- Legacy base58btc without Qm prefix (some keys): "k" + base58btc chars
-    if string.match(cid, "^k[1-9A-HJ-NP-Za-km-z]{44,}$") then
+    if string.match(cid, "^k[1-9A-HJ-NP-Za-km-z]+$") then
         local len = #cid
-        if len >= 46 and len <= 100 then
+        if len >= 45 and len <= 100 then
             return true
         end
     end

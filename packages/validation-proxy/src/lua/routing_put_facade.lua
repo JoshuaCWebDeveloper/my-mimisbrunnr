@@ -18,7 +18,7 @@ local function extract_ipns_key()
     -- Validate IPNS key format: /ipns/<peer-id>
     local peer_id = string.match(arg, "^/ipns/(.+)$")
     if not peer_id then
-        validator.send_error(400, "Invalid IPNS key format. Expected: /ipns/<peer-id>")
+        validator.send_error(400, "Invalid IPNS key format. Expected: /ipns/<peer-id>, received: " .. arg)
         return nil
     end
 
@@ -54,7 +54,7 @@ end
 local function validate_ipns_record(peer_id, record_bytes)
         -- VAlidate IPNS peer id format
     if not validator.is_valid_ipns_peer_id(peer_id) then
-        validator.send_error(400, "Invalid IPNS peer id format. Expected: /ipns/<peer-id>")
+        validator.send_error(400, "Invalid IPNS peer id format. Received: " .. peer_id)
         return false
     end
 
