@@ -52,7 +52,7 @@ end
 
 -- Validate IPNS record via validation-service
 local function validate_ipns_record(peer_id, record_bytes)
-        -- VAlidate IPNS peer id format
+        -- Validate IPNS peer id format
     if not validator.is_valid_ipns_peer_id(peer_id) then
         validator.send_error(400, "Invalid IPNS peer id format. Received: " .. peer_id)
         return false
