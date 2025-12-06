@@ -705,7 +705,7 @@ export class IdentityService {
     /**
      * Retrieve DID document from IPFS/IPNS
      *
-     * @param cidOrIpns - CID or IPNS name of DID document
+     * @param cid - CID of DID document
      * @returns DID document
      * @throws Error if DID service not initialized
      *
@@ -713,7 +713,7 @@ export class IdentityService {
      * Can be called without an unlocked identity since it's retrieving
      * someone else's DID document.
      */
-    async retrieveDidDocument(cidOrIpns: string): Promise<DidDocument> {
-        return this.getDidService().retrieveDidDocument(cidOrIpns);
+    async retrieveDidDocument(cid: string): Promise<DidDocument> {
+        return this.getDidService().retrieveDidDocument(cid);
     }
 }

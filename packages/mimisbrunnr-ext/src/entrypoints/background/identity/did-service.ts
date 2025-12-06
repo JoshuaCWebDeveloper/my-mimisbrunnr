@@ -182,28 +182,17 @@ export class DidService {
     /**
      * Retrieve DID document from IPFS
      *
-     * @param cidOrIpns - CID or IPNS name of the DID document
+     * @param cid - CID of the DID document
      * @returns DID Document
      *
      * @remarks
-     * Handles both CID and IPNS resolution.
-     * If IPNS name provided, resolves to CID first.
-     *
      * TODO(MM-35): Add DID document validation
      * TODO(MM-36): Add caching
      */
-    async retrieveDidDocument(cidOrIpns: string): Promise<DidDocument> {
-        log.info('[DidService] Retrieving DID document:', cidOrIpns);
+    async retrieveDidDocument(cid: string): Promise<DidDocument> {
+        log.info('[DidService] Retrieving DID document:', cid);
 
         try {
-            let cid = cidOrIpns;
-
-            // If it's an IPNS name, resolve it first
-            if (cidOrIpns.startsWith('k5')) {
-                cid = await this.ipfsService.resolveIpns(cidOrIpns);
-                log.info('[DidService] IPNS resolved to CID:', cid);
-            }
-
             // Retrieve from IPFS
             const obj = await this.ipfsService.retrieveObject(cid);
 

@@ -236,35 +236,6 @@ describe('DidService', () => {
             expect(mockIpfsService.retrieveObject).toHaveBeenCalledWith(didCid);
         });
 
-        it('should resolve IPNS name before retrieving', async () => {
-            const ipnsName =
-                'k51qzi5uqu5dlvj2baxnqndepeb86cbk3ng7n3i46uzyxzyqj2xjonzllnv0v8';
-            const resolvedCid =
-                'bafyreidtyrgnky7eobbone7266wzgwd4cwsshuc2pqdvc3oyjcnmksiigq';
-            const expectedDidDocument = {
-                '@context': ['https://www.w3.org/ns/did/v1'],
-                id: mockIdentity.did,
-                verificationMethod: [],
-                assertionMethod: [],
-                service: [],
-            };
-
-            vi.mocked(mockIpfsService.resolveIpns).mockResolvedValue(
-                resolvedCid
-            );
-            vi.mocked(mockIpfsService.retrieveObject).mockResolvedValue(
-                expectedDidDocument
-            );
-
-            const result = await didService.retrieveDidDocument(ipnsName);
-
-            expect(result).toEqual(expectedDidDocument);
-            expect(mockIpfsService.resolveIpns).toHaveBeenCalledWith(ipnsName);
-            expect(mockIpfsService.retrieveObject).toHaveBeenCalledWith(
-                resolvedCid
-            );
-        });
-
         it('should propagate errors from IPFS service', async () => {
             const didCid =
                 'bafyreidtyrgnky7eobbone7266wzgwd4cwsshuc2pqdvc3oyjcnmksiigq';
