@@ -1,6 +1,8 @@
 import log from 'loglevel';
 import { createHelia, type Helia } from 'helia';
 import { dagJson, type DAGJSON } from '@helia/dag-json';
+import { createIPNSRecord, marshalIPNSRecord } from 'ipns';
+import { peerIdFromPublicKey } from '@libp2p/peer-id';
 import { MemoryBlockstore } from 'blockstore-core';
 import { MemoryDatastore } from 'datastore-core';
 import {
@@ -9,6 +11,7 @@ import {
 } from 'kubo-rpc-client';
 import { Libp2pConnection } from './libp2p-connection.js';
 import { CID } from 'multiformats/cid';
+import type { Ed25519PrivateKey } from '@libp2p/interface';
 
 export interface AddObjectOptions {
     pin?: boolean;
@@ -315,6 +318,165 @@ export class IpfsService {
             return object;
         } catch (error) {
             log.error('[IpfsService] Failed to retrieve object:', error);
+            // TODO(MM-36): Add proper error handling and user notification
+            throw error;
+        }
+    }
+
+    /**
+     * Publish a CID to IPNS using user's identity key (MM-29)
+     *
+     * @param cidString - CID to publish (typically DID document CID)
+     * @param privateKey - User's Ed25519 private key (from identity)
+     * @param sequenceNumber - IPNS record sequence number (default: 0)
+     * @returns IPNS name (Peer ID string)
+     *
+     * @remarks
+     * IPNS (InterPlanetary Name System) provides mutable pointers to content.
+     *
+     * Architecture (MM-29):
+     * 1. Browser creates and signs IPNS record using user's identity key (via ipns package)
+     * 2. Marshal the record to protobuf bytes
+     * 3. POST the raw record to validation-proxy at /api/v0/routing/put
+     * 4. validation-proxy validates the record via validation-service
+     * 5. If valid, forward to Kubo which publishes to DHT
+     *
+     * This keeps the user's private key in the browser and derives a unique IPNS name
+     * from their identity, ensuring each user has their own IPNS name.
+     *
+     * TODO(MM-36): Add retry logic with exponential backoff
+     * TODO(MM-36): Implement sequence number tracking (for updates)
+     * TODO(MM-35): Validate CID format before publishing
+     */
+    async publishToIpns(
+        cidString: string,
+        privateKey: Ed25519PrivateKey,
+        sequenceNumber = 0n
+    ): Promise<string> {
+        if (!this.kuboClient) {
+            throw new Error('Kubo RPC client not initialized');
+        }
+
+        try {
+            // Validate CID format
+            const cid = CID.parse(cidString);
+
+            log.info(
+                '[IpfsService] Creating IPNS record:',
+                `CID: ${cidString}, Sequence: ${sequenceNumber}`
+            );
+
+            // Create and sign IPNS record in the browser using the user's identity key
+            // Lifetime: 24 hours (86400000 ms) as per IPNS defaults
+            const ipnsRecord = await createIPNSRecord(
+                privateKey,
+                cid,
+                sequenceNumber,
+                86400000
+            );
+
+            // Marshal the IPNS record to protobuf bytes
+            const marshaledRecord = marshalIPNSRecord(ipnsRecord);
+
+            // Get the Peer ID (IPNS name) from the public key
+            const peerId = peerIdFromPublicKey(privateKey.publicKey);
+            const peerIdString = peerId.toString();
+
+            log.info(
+                '[IpfsService] IPNS record created, publishing to DHT:',
+                `IPNS Name: ${peerIdString}`
+            );
+
+            // Publish the marshaled IPNS record to the DHT via Kubo
+            // This goes through validation-proxy which validates via validation-service
+            // routing.put returns an async iterable - we need to consume it
+            for await (const event of this.kuboClient.routing.put(
+                `/ipns/${peerIdString}`,
+                marshaledRecord
+            )) {
+                // Log events from the routing system
+                log.debug('[IpfsService] Routing event:', event);
+            }
+
+            log.info(
+                '[IpfsService] IPNS published successfully to DHT:',
+                `IPNS: ${peerIdString}, CID: ${cidString}`
+            );
+
+            // TODO(MM-36): Store IPNS record metadata (sequence number, timestamp)
+
+            // Verify IPNS resolution
+            const resolvedCid = await this.resolveIpns(peerIdString);
+
+            if (resolvedCid !== cidString) {
+                throw new Error(
+                    `IPNS resolution mismatch: ${resolvedCid} !== ${cidString}`
+                );
+            }
+
+            log.info(
+                '[IpfsService] IPNS verified successfully:',
+                `IPNS: ${peerIdString}, CID: ${cidString}`
+            );
+
+            return peerIdString;
+        } catch (error) {
+            log.error('[IpfsService] Failed to publish IPNS:', error);
+            // TODO(MM-36): Add proper error handling and user notification
+            throw error;
+        }
+    }
+
+    /**
+     * Resolve an IPNS name to CID (MM-29)
+     *
+     * @param ipnsName - IPNS name (k51qzi5uqu5d... format)
+     * @returns Resolved CID
+     *
+     * @remarks
+     * Resolves IPNS name to current CID via Kubo RPC API
+     *
+     * TODO(MM-36): Add retry logic with exponential backoff
+     * TODO(MM-36): Add timeout (10s as per spec)
+     * TODO(MM-36): Add IPNS freshness validation
+     * TODO(MM-34): Cache IPNS resolutions
+     */
+    async resolveIpns(ipnsName: string): Promise<string> {
+        if (!this.kuboClient) {
+            throw new Error('Kubo RPC client not initialized');
+        }
+
+        try {
+            log.info('[IpfsService] Resolving IPNS:', ipnsName);
+
+            // TODO(MM-36): Add timeout wrapper
+
+            // Resolve IPNS via Kubo RPC API
+            let cid: string | undefined = undefined;
+            for await (const result of this.kuboClient.name.resolve(ipnsName)) {
+                if (!result) {
+                    continue;
+                }
+
+                cid = result.replace('/ipfs/', '');
+                break;
+            }
+
+            if (!cid) {
+                throw new Error(`No results returned for IPNS: ${ipnsName}`);
+            }
+
+            log.info(
+                '[IpfsService] IPNS resolved successfully:',
+                `IPNS: ${ipnsName}, CID: ${cid}`
+            );
+
+            // TODO(MM-34): Cache resolution
+            // TODO(MM-36): Validate freshness (sequence numbers)
+
+            return cid;
+        } catch (error) {
+            log.error('[IpfsService] Failed to resolve IPNS:', error);
             // TODO(MM-36): Add proper error handling and user notification
             throw error;
         }

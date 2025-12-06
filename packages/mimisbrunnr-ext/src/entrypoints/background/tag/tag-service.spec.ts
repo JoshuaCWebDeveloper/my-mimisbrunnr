@@ -22,6 +22,7 @@ import type {
     CreateTag,
     TagCollection,
     EncryptedTagCollection,
+    UserManifest,
 } from '@my-mimisbrunnr/protocol';
 
 // Mock repositories and services
@@ -58,13 +59,15 @@ const mockIpfsService = {
 const mockIdentityService = {
     getCurrent: vi.fn(),
     isUnlocked: vi.fn(),
-    encryptWithCurrentIdentity: vi.fn(),
-    decryptWithCurrentIdentity: vi.fn(),
+    encryptContent: vi.fn(),
+    decryptContent: vi.fn(),
+    publishDidDocument: vi.fn(),
 } as unknown as {
     getCurrent: Mock;
     isUnlocked: Mock;
-    encryptWithCurrentIdentity: Mock;
-    decryptWithCurrentIdentity: Mock;
+    encryptContent: Mock;
+    decryptContent: Mock;
+    publishDidDocument: Mock;
 } & IdentityService;
 
 describe('TagService', () => {
@@ -207,101 +210,7 @@ describe('TagService', () => {
         });
     });
 
-    describe('Publishing', () => {
-        describe('publishTagCollection - encrypted', () => {
-            it('should publish encrypted tag collection', async () => {
-                // Arrange
-                mockIdentityService.getCurrent.mockReturnValue(mockIdentity);
-                mockTagRepository.list.mockResolvedValue([mockTag]);
-                mockIdentityService.encryptWithCurrentIdentity.mockResolvedValue(
-                    {
-                        encryptedData: 'encrypted-data',
-                        nonce: 'nonce',
-                        salt: 'salt',
-                    }
-                );
-                mockIpfsService.addObject.mockResolvedValue('QmTest123');
-
-                // Act
-                const cid = await tagService.publishTagCollection({
-                    encrypt: true,
-                });
-
-                // Assert
-                expect(mockIdentityService.getCurrent).toHaveBeenCalled();
-                expect(mockTagRepository.list).toHaveBeenCalled();
-                expect(
-                    mockIdentityService.encryptWithCurrentIdentity
-                ).toHaveBeenCalled();
-                expect(mockIpfsService.addObject).toHaveBeenCalledWith(
-                    expect.objectContaining({
-                        version: 1,
-                        encrypted: true,
-                        data: 'encrypted-data',
-                        nonce: 'nonce',
-                        contentSalt: 'salt',
-                    }),
-                    {}
-                );
-                expect(cid).toBe('QmTest123');
-            });
-
-            it('should pass pin option to IPFS service', async () => {
-                // Arrange
-                mockIdentityService.getCurrent.mockReturnValue(mockIdentity);
-                mockTagRepository.list.mockResolvedValue([mockTag]);
-                mockIdentityService.encryptWithCurrentIdentity.mockResolvedValue(
-                    {
-                        encryptedData: 'encrypted-data',
-                        nonce: 'nonce',
-                        salt: 'salt',
-                    }
-                );
-                mockIpfsService.addObject.mockResolvedValue('QmTest123');
-
-                // Act
-                await tagService.publishTagCollection({
-                    encrypt: true,
-                    pin: true,
-                });
-
-                // Assert
-                expect(mockIpfsService.addObject).toHaveBeenCalledWith(
-                    expect.any(Object),
-                    { pin: true }
-                );
-            });
-        });
-
-        describe('publishTagCollection - unencrypted', () => {
-            it('should publish unencrypted tag collection', async () => {
-                // Arrange
-                mockIdentityService.getCurrent.mockReturnValue(mockIdentity);
-                mockTagRepository.list.mockResolvedValue([mockTag]);
-                mockIpfsService.addObject.mockResolvedValue('QmTest123');
-
-                // Act
-                const cid = await tagService.publishTagCollection({
-                    encrypt: false,
-                });
-
-                // Assert
-                expect(
-                    mockIdentityService.encryptWithCurrentIdentity
-                ).not.toHaveBeenCalled();
-                expect(mockIpfsService.addObject).toHaveBeenCalledWith(
-                    expect.objectContaining({
-                        version: 1,
-                        encrypted: false,
-                        handle: '@testuser',
-                        tags: [mockTag],
-                    }),
-                    {}
-                );
-                expect(cid).toBe('QmTest123');
-            });
-        });
-    });
+    // Note: publishTagCollection is now a private method tested indirectly through publishUserManifest
 
     describe('Retrieval', () => {
         describe('retrieveTagCollection - encrypted', () => {
@@ -331,7 +240,7 @@ describe('TagService', () => {
                 mockIpfsService.retrieveObject.mockResolvedValue(
                     encryptedCollection
                 );
-                mockIdentityService.decryptWithCurrentIdentity.mockResolvedValue(
+                mockIdentityService.decryptContent.mockResolvedValue(
                     plainCollection
                 );
 
@@ -344,9 +253,11 @@ describe('TagService', () => {
                 expect(mockIpfsService.retrieveObject).toHaveBeenCalledWith(
                     'QmTest123'
                 );
-                expect(
-                    mockIdentityService.decryptWithCurrentIdentity
-                ).toHaveBeenCalledWith('encrypted-data', 'nonce', 'salt');
+                expect(mockIdentityService.decryptContent).toHaveBeenCalledWith(
+                    'encrypted-data',
+                    'nonce',
+                    'salt'
+                );
                 expect(result).toEqual(plainCollection);
             });
         });
@@ -378,7 +289,7 @@ describe('TagService', () => {
                     'QmTest123'
                 );
                 expect(
-                    mockIdentityService.decryptWithCurrentIdentity
+                    mockIdentityService.decryptContent
                 ).not.toHaveBeenCalled();
                 expect(result).toEqual(plainCollection);
             });
@@ -400,9 +311,20 @@ describe('TagService', () => {
     });
 
     describe('Import', () => {
-        describe('importTagCollection', () => {
-            it('should import tags with merge mode', async () => {
+        describe('importUserManifest', () => {
+            it('should import manifest with single collection', async () => {
                 // Arrange
+                const manifest: UserManifest = {
+                    id: 'manifest-1',
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                    version: 1,
+                    encrypted: false,
+                    handle: '@testuser',
+                    did: 'did:key:z6MkTest123',
+                    collections: ['QmCollection123'],
+                };
+
                 const tagCollection: TagCollection = {
                     id: 'col-1',
                     createdAt: new Date().toISOString(),
@@ -410,43 +332,59 @@ describe('TagService', () => {
                     version: 1,
                     encrypted: false,
                     handle: '@testuser',
-                    tags: [
-                        mockTag,
-                        { ...mockTag, id: 'tag-2', username: 'other' },
-                    ],
+                    tags: [mockTag],
                 };
 
-                mockIpfsService.retrieveObject.mockResolvedValue(tagCollection);
+                // First call returns manifest, second returns collection
+                mockIpfsService.retrieveObject
+                    .mockResolvedValueOnce(manifest)
+                    .mockResolvedValueOnce(tagCollection);
+
                 mockTagRepository.importTags.mockResolvedValue({
-                    imported: 2,
-                    total: 2,
+                    imported: 1,
+                    total: 1,
                 });
 
                 // Act
-                const result = await tagService.importTagCollection(
-                    'QmTest123',
-                    {
-                        mode: 'merge',
-                    }
+                const result = await tagService.importUserManifest(
+                    'QmManifest456',
+                    { mode: 'merge' }
                 );
 
                 // Assert
                 expect(mockIpfsService.retrieveObject).toHaveBeenCalledWith(
-                    'QmTest123'
+                    'QmManifest456'
+                );
+                expect(mockIpfsService.retrieveObject).toHaveBeenCalledWith(
+                    'QmCollection123'
                 );
                 expect(mockTagRepository.importTags).toHaveBeenCalledWith(
                     expect.arrayContaining([
                         expect.objectContaining({ username: 'elonmusk' }),
-                        expect.objectContaining({ username: 'other' }),
                     ]),
                     'merge'
                 );
-                expect(result).toEqual({ imported: 2, total: 2 });
+                expect(result).toEqual({
+                    collectionsProcessed: 1,
+                    totalImported: 1,
+                    totalTags: 1,
+                });
             });
 
-            it('should import tags with overwrite mode', async () => {
+            it('should import manifest with multiple collections', async () => {
                 // Arrange
-                const tagCollection: TagCollection = {
+                const manifest: UserManifest = {
+                    id: 'manifest-1',
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                    version: 1,
+                    encrypted: false,
+                    handle: '@testuser',
+                    did: 'did:key:z6MkTest123',
+                    collections: ['QmCollection1', 'QmCollection2'],
+                };
+
+                const collection1: TagCollection = {
                     id: 'col-1',
                     createdAt: new Date().toISOString(),
                     updatedAt: new Date().toISOString(),
@@ -456,30 +394,57 @@ describe('TagService', () => {
                     tags: [mockTag],
                 };
 
-                mockIpfsService.retrieveObject.mockResolvedValue(tagCollection);
-                mockTagRepository.importTags.mockResolvedValue({
-                    imported: 1,
-                    total: 1,
-                });
+                const collection2: TagCollection = {
+                    id: 'col-2',
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                    version: 1,
+                    encrypted: false,
+                    handle: '@testuser',
+                    tags: [{ ...mockTag, id: 'tag-2', username: 'other' }],
+                };
+
+                mockIpfsService.retrieveObject
+                    .mockResolvedValueOnce(manifest)
+                    .mockResolvedValueOnce(collection1)
+                    .mockResolvedValueOnce(collection2);
+
+                mockTagRepository.importTags
+                    .mockResolvedValueOnce({ imported: 1, total: 1 })
+                    .mockResolvedValueOnce({ imported: 1, total: 1 });
 
                 // Act
-                const result = await tagService.importTagCollection(
-                    'QmTest123',
-                    {
-                        mode: 'overwrite',
-                    }
+                const result = await tagService.importUserManifest(
+                    'QmManifest789',
+                    { mode: 'overwrite' }
                 );
 
                 // Assert
+                expect(mockIpfsService.retrieveObject).toHaveBeenCalledTimes(3);
                 expect(mockTagRepository.importTags).toHaveBeenCalledWith(
                     expect.any(Array),
                     'overwrite'
                 );
-                expect(result).toEqual({ imported: 1, total: 1 });
+                expect(result).toEqual({
+                    collectionsProcessed: 2,
+                    totalImported: 2,
+                    totalTags: 2,
+                });
             });
 
             it('should default to merge mode if not specified', async () => {
                 // Arrange
+                const manifest: UserManifest = {
+                    id: 'manifest-1',
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                    version: 1,
+                    encrypted: false,
+                    handle: '@testuser',
+                    did: 'did:key:z6MkTest123',
+                    collections: ['QmCollection123'],
+                };
+
                 const tagCollection: TagCollection = {
                     id: 'col-1',
                     createdAt: new Date().toISOString(),
@@ -490,14 +455,17 @@ describe('TagService', () => {
                     tags: [mockTag],
                 };
 
-                mockIpfsService.retrieveObject.mockResolvedValue(tagCollection);
+                mockIpfsService.retrieveObject
+                    .mockResolvedValueOnce(manifest)
+                    .mockResolvedValueOnce(tagCollection);
+
                 mockTagRepository.importTags.mockResolvedValue({
                     imported: 1,
                     total: 1,
                 });
 
                 // Act
-                await tagService.importTagCollection('QmTest123');
+                await tagService.importUserManifest('QmManifest');
 
                 // Assert
                 expect(mockTagRepository.importTags).toHaveBeenCalledWith(
@@ -510,52 +478,107 @@ describe('TagService', () => {
 
     describe('User Manifest', () => {
         describe('publishUserManifest', () => {
-            it('should publish encrypted user manifest', async () => {
+            it('should publish unencrypted manifest with encrypted tag collection', async () => {
                 // Arrange
-                const mockDid = 'did:key:z6MkTest123';
-                const tagCollection: TagCollection = {
-                    id: 'col-1',
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString(),
-                    version: 1,
-                    encrypted: false,
-                    handle: '@testuser',
-                    tags: [mockTag],
-                };
-
                 mockIdentityService.getCurrent.mockReturnValue(mockIdentity);
-                mockIdentityService.encryptWithCurrentIdentity.mockResolvedValue(
-                    {
-                        encryptedData: 'encrypted-manifest',
-                        nonce: 'manifest-nonce',
-                        salt: 'manifest-salt',
-                    }
-                );
-                mockIpfsService.addObject.mockResolvedValue('QmManifest123');
+                mockIdentityService.encryptContent.mockResolvedValue({
+                    encryptedData: 'encrypted-collection',
+                    nonce: 'collection-nonce',
+                    salt: 'collection-salt',
+                });
+                mockIdentityService.publishDidDocument.mockResolvedValue({
+                    didDocumentCid: 'QmDIDDoc789',
+                    ipnsKey: 'k51qzi5uqu5abc123',
+                });
+
+                // Mock addObject to return different CIDs for collection vs manifest
+                mockIpfsService.addObject
+                    .mockResolvedValueOnce('QmCollection456') // First call: TagCollection
+                    .mockResolvedValueOnce('QmManifest123'); // Second call: Manifest
+
+                // Add a tag to the service
+                mockTagRepository.list.mockResolvedValue([mockTag]);
+                mockTagRepository.upsert.mockResolvedValue(mockTag);
+                await tagService.upsert(mockTag);
 
                 // Act
-                const cid = await tagService.publishUserManifest(
-                    mockDid,
-                    [tagCollection],
-                    { encrypt: true }
+                const result = await tagService.publishUserManifest({
+                    encrypt: true,
+                    pin: true,
+                });
+
+                // Assert - TagCollection is encrypted
+                expect(mockIdentityService.encryptContent).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        handle: mockIdentity.handle,
+                        tags: expect.arrayContaining([
+                            expect.objectContaining({
+                                username: mockTag.username,
+                                name: mockTag.name,
+                            }),
+                        ]),
+                    })
                 );
 
-                // Assert
-                expect(mockIdentityService.getCurrent).toHaveBeenCalled();
-                expect(
-                    mockIdentityService.encryptWithCurrentIdentity
-                ).toHaveBeenCalled();
-                expect(mockIpfsService.addObject).toHaveBeenCalledWith(
+                // Assert - Manifest is always unencrypted
+                expect(mockIpfsService.addObject).toHaveBeenNthCalledWith(
+                    2,
                     expect.objectContaining({
                         version: 1,
-                        encrypted: true,
-                        data: 'encrypted-manifest',
-                        nonce: 'manifest-nonce',
-                        contentSalt: 'manifest-salt',
+                        encrypted: false, // Manifests are NEVER encrypted
+                        handle: mockIdentity.handle,
+                        did: mockIdentity.did,
+                        collections: ['QmCollection456'], // Array of CID strings
                     }),
-                    {}
+                    { pin: true }
                 );
-                expect(cid).toBe('QmManifest123');
+
+                // Assert - DID Document is published
+                expect(
+                    mockIdentityService.publishDidDocument
+                ).toHaveBeenCalledWith('QmManifest123');
+
+                // Assert - Return value includes collections and manifest
+                expect(result).toEqual('QmManifest123');
+            });
+
+            it('should publish unencrypted manifest with public tag collection', async () => {
+                // Arrange
+                mockIdentityService.getCurrent.mockReturnValue(mockIdentity);
+                mockIdentityService.publishDidDocument.mockResolvedValue({
+                    didDocumentCid: 'QmDIDDoc789',
+                    ipnsKey: 'k51qzi5uqu5abc123',
+                });
+
+                mockIpfsService.addObject
+                    .mockResolvedValueOnce('QmPublicCollection789')
+                    .mockResolvedValueOnce('QmManifest456');
+
+                // Add a tag to the service
+                mockTagRepository.list.mockResolvedValue([mockTag]);
+                mockTagRepository.upsert.mockResolvedValue(mockTag);
+                await tagService.upsert(mockTag);
+
+                // Act
+                await tagService.publishUserManifest({
+                    encrypt: false, // Public tag collection
+                    pin: true,
+                });
+
+                // Assert - TagCollection is NOT encrypted
+                expect(
+                    mockIdentityService.encryptContent
+                ).not.toHaveBeenCalled();
+
+                // Assert - Manifest references public collection
+                expect(mockIpfsService.addObject).toHaveBeenNthCalledWith(
+                    2,
+                    expect.objectContaining({
+                        encrypted: false,
+                        collections: ['QmPublicCollection789'],
+                    }),
+                    { pin: true }
+                );
             });
         });
     });

@@ -134,7 +134,7 @@ describe('Infrastructure Tests', () => {
 
             expect(health.status).toBe('healthy');
             expect(health.service).toBe('ajv-validation-sidecar');
-            expect(health.schemas).toContain('taglist/v1');
+            expect(health.schemas).toContain('data/write/v1');
             expect(health.schemas).toContain('pubsub/head/v1');
         });
 

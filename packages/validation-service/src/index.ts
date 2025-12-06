@@ -4,13 +4,20 @@ import addFormats from 'ajv-formats';
 import { createServer } from 'http';
 import log from 'loglevel';
 import * as z from 'zod';
-import { EncryptedTagCollectionSchema } from '@my-mimisbrunnr/protocol';
+import {
+    EncryptedTagCollectionSchema,
+    UserManifestSchema,
+    DidDocumentSchema,
+} from '@my-mimisbrunnr/protocol';
+import { unmarshalIPNSRecord } from 'ipns';
+import { validate as validateIpnsRecord } from 'ipns/validator';
+import { peerIdFromString } from '@libp2p/peer-id';
+import { extractFilePart } from './extract-file-part.js';
 
 // Configure logging
 log.setLevel((process.env.LOG_LEVEL as log.LogLevelDesc) || 'info');
 
-const app = express();
-const port = process.env.VALIDATOR_PORT || 3000;
+const port = process.env.VALIDATOR_PORT || 3010;
 
 // Configure AJV with strict validation
 const ajv = new Ajv.default({
@@ -24,9 +31,16 @@ addFormats.default(ajv);
 // Convert Zod schemas from @my-mimisbrunnr/protocol to JSON Schema for AJV validation
 // Using Zod's native z.toJSONSchema() for conversion (Zod 4+)
 const schemas = {
-    'taglist/v1': z.toJSONSchema(EncryptedTagCollectionSchema, {
-        target: 'draft-7', // AJV uses JSON Schema Draft 7 by default
-    }),
+    'data/write/v1': z.toJSONSchema(
+        z.union([
+            EncryptedTagCollectionSchema,
+            UserManifestSchema,
+            DidDocumentSchema,
+        ]),
+        {
+            target: 'draft-7', // AJV uses JSON Schema Draft 7 by default
+        }
+    ),
 
     'pubsub/head/v1': {
         type: 'object',
@@ -67,8 +81,7 @@ for (const [schemaId, schema] of Object.entries(schemas)) {
     }
 }
 
-// Middleware
-app.use(express.json({ limit: '1mb' }));
+const app = express();
 
 // access logging
 app.use((req, res, next) => {
@@ -80,6 +93,7 @@ app.use((req, res, next) => {
     return next();
 });
 
+// CORS middleware
 app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -89,6 +103,130 @@ app.use((req, res, next) => {
     }
     return next();
 });
+
+// IPNS record validation endpoint
+// Expects multipart/form-data with 'file' field containing the marshaled IPNS record
+app.post(
+    '/validate/ipns/:peerId',
+    express.raw({ type: 'multipart/form-data', limit: '16kb' }),
+    async (req: Request, res: Response) => {
+        try {
+            const { peerId: peerIdString } = req.params;
+
+            // Validate request
+            if (!peerIdString) {
+                return res.status(400).json({
+                    valid: false,
+                    error: 'Missing peerId parameter',
+                });
+            }
+
+            const rawBody = req.body as Buffer;
+
+            if (!rawBody || !rawBody.length) {
+                return res.status(400).json({
+                    valid: false,
+                    error: 'Empty request body',
+                });
+            }
+
+            const file = extractFilePart(
+                rawBody,
+                req.headers['content-type'] as string
+            );
+
+            log.info(
+                `IPNS validation request: peerId=${peerIdString}, raw body size=${rawBody?.length}, content-type=${req.headers['content-type']}, file size=${file?.length}`
+            );
+
+            if (!file) {
+                return res.status(400).json({
+                    valid: false,
+                    error: 'Missing file part in multipart/form-data',
+                    debug: {
+                        filePresent: !!file,
+                        contentType: req.headers['content-type'],
+                    },
+                });
+            }
+
+            const marshaledRecord = file;
+
+            // Parse Peer ID to get public key
+            let peerId;
+            try {
+                peerId = peerIdFromString(peerIdString);
+            } catch (error) {
+                return res.status(400).json({
+                    valid: false,
+                    error: `Invalid Peer ID format: ${
+                        error instanceof Error ? error.message : 'unknown error'
+                    }`,
+                });
+            }
+
+            if (!peerId.publicKey) {
+                return res.status(400).json({
+                    valid: false,
+                    error: 'Peer ID has no public key',
+                });
+            }
+
+            // Unmarshal IPNS record
+            let ipnsRecord;
+            try {
+                ipnsRecord = unmarshalIPNSRecord(
+                    new Uint8Array(marshaledRecord)
+                );
+            } catch (error) {
+                return res.status(400).json({
+                    valid: false,
+                    error: `Failed to unmarshal IPNS record: ${error}`,
+                });
+            }
+
+            // Validate IPNS record signature against the public key
+            try {
+                await validateIpnsRecord(
+                    peerId.publicKey,
+                    new Uint8Array(marshaledRecord)
+                );
+            } catch (error) {
+                return res.status(400).json({
+                    valid: false,
+                    error: `IPNS record validation failed: ${
+                        error instanceof Error ? error.message : 'unknown error'
+                    }`,
+                });
+            }
+
+            // All validations passed
+            log.info(
+                `✓ IPNS record validated successfully: peerId=${peerIdString}, value=${ipnsRecord.value}, sequence=${ipnsRecord.sequence}`
+            );
+
+            return res.json({
+                valid: true,
+                peerId: peerIdString,
+                value: ipnsRecord.value.toString(),
+                sequence: ipnsRecord.sequence.toString(),
+            });
+        } catch (error) {
+            log.error('IPNS validation error:', error);
+            return res.status(500).json({
+                valid: false,
+                error: 'Internal validation error',
+                message:
+                    error instanceof Error ? error.message : 'Unknown error',
+            });
+        }
+    }
+);
+
+// JSON endpoints
+
+// Middleware
+app.use(express.json({ limit: '1mb' }));
 
 // Health check endpoint
 app.get('/health', (_req: Request, res: Response) => {
@@ -175,29 +313,38 @@ app.use((req: Request, res: Response) => {
     res.status(404).json({
         error: 'Not found',
         path: req.path,
-        availableEndpoints: ['/health', '/validate', '/schemas'],
+        availableEndpoints: [
+            '/health',
+            '/validate',
+            '/validate/ipns/:peerId',
+            '/schemas',
+        ],
     });
 });
 
-// Start server
-const server = createServer(app);
+// Only start server if not in test mode
+if (process.env.NODE_ENV !== 'test') {
+    const server = createServer(app);
 
-server.listen(port, () => {
-    log.info(`🔒 AJV Validation Sidecar listening on port ${port}`);
-    log.info(`📋 Available schemas: ${Object.keys(schemas).join(', ')}`);
-    log.info(`🚀 Endpoints: /health, /validate, /schemas`);
-});
-
-// Graceful shutdown
-const gracefulShutdown = () => {
-    log.info('\n🛑 Shutting down validation sidecar...');
-    server.close(() => {
-        log.info('✓ Server closed');
-        process.exit(0);
+    server.listen(port, () => {
+        log.info(`🔒 AJV Validation Sidecar listening on port ${port}`);
+        log.info(`📋 Available schemas: ${Object.keys(schemas).join(', ')}`);
+        log.info(
+            `🚀 Endpoints: /health, /validate, /validate/ipns/:peerId, /schemas`
+        );
     });
-};
 
-process.on('SIGTERM', gracefulShutdown);
-process.on('SIGINT', gracefulShutdown);
+    // Graceful shutdown
+    const gracefulShutdown = () => {
+        log.info('\n🛑 Shutting down validation sidecar...');
+        server.close(() => {
+            log.info('✓ Server closed');
+            process.exit(0);
+        });
+    };
+
+    process.on('SIGTERM', gracefulShutdown);
+    process.on('SIGINT', gracefulShutdown);
+}
 
 export default app;

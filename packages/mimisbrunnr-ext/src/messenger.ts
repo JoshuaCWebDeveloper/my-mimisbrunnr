@@ -12,7 +12,8 @@ export enum MessageType {
     PUBLISH_TO_IPFS = 'PUBLISH_TO_IPFS',
     RETRIEVE_FROM_IPFS = 'RETRIEVE_FROM_IPFS',
     IMPORT_FROM_IPFS = 'IMPORT_FROM_IPFS',
-    // Identity operations (MM-28)
+    UPDATE_PUBLISHED_MANIFEST = 'UPDATE_PUBLISHED_MANIFEST',
+    // Identity operations
     CREATE_IDENTITY = 'CREATE_IDENTITY',
     UNLOCK_IDENTITY = 'UNLOCK_IDENTITY',
     LOCK_IDENTITY = 'LOCK_IDENTITY',
@@ -82,6 +83,12 @@ export type Message<T extends MessageType = MessageType> =
               type: T;
               body: { cid: string; mode: 'merge' | 'overwrite' };
               response: { imported: number; total: number };
+          }
+        : T extends MessageType.UPDATE_PUBLISHED_MANIFEST
+        ? {
+              type: T;
+              body: never;
+              response: { cid: string };
           }
         : T extends MessageType.CREATE_IDENTITY
         ? {

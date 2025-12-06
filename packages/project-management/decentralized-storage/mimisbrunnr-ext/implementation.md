@@ -1002,16 +1002,16 @@ This section breaks down Epic 1 into concrete implementation tickets that can be
 
 **Scope**:
 
--   Extend data structures (UserManifest, EncryptedManifest, DIDDocument)
+-   Extend data structures (UserManifest, DIDDocument)
 -   Implement DID document generation with service endpoints
--   Build encrypted manifest wrapper creation
+-   Build manifest wrapper creation
 -   Create IPNS publishing workflow using kubo-rpc-client to call validation-proxy HTTP API
 -   Implement content pinning via kubo-rpc-client for DID documents and manifests
 -   Implement publishing service coordinating encryption + IPFS operations
 -   Implement manifest update workflow (update DID doc service endpoint, IPNS republish)
 -   Update background script to integrate publishing service
 -   Add publishing UI controls to popup
--   Test encrypted publish flow: tags → encrypted manifest → DID doc → IPNS
+-   Test encrypted publish flow: encrypted tags → manifest → DID doc → IPNS
 -   Test update flow: modify tags → update manifest → update DID doc → IPNS republish
 
 **Deliverables**:

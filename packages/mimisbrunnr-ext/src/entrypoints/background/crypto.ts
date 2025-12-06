@@ -30,41 +30,8 @@ import { scrypt } from 'scrypt-js';
 import nacl from 'tweetnacl';
 import { sha256 } from '@noble/hashes/sha2';
 import { bytesToHex } from '@noble/hashes/utils';
-
-// ============================================================================
-// Types
-// ============================================================================
-
-/**
- * W3C DID Core verification method
- */
-export interface VerificationMethod {
-    id: string;
-    type: 'Ed25519VerificationKey2018';
-    controller: string;
-    publicKeyMultibase: string;
-}
-
-/**
- * DID document service endpoint
- */
-export interface ServiceEndpoint {
-    id: string;
-    type: string;
-    serviceEndpoint: string;
-}
-
-/**
- * W3C DID Core document structure
- * Always published unencrypted to IPFS
- */
-export interface DIDDocument {
-    '@context': string[];
-    id: string;
-    verificationMethod: VerificationMethod[];
-    assertionMethod: string[];
-    service: ServiceEndpoint[];
-}
+import { generateKeyPairFromSeed } from '@libp2p/crypto/keys';
+import type { Ed25519PrivateKey } from '@libp2p/interface';
 
 // ============================================================================
 // Constants
@@ -207,6 +174,32 @@ export function generateDIDFromPublicKey(publicKey: Uint8Array): string {
     const base58Key = base58Encode(multicodecKey);
 
     return `did:key:z${base58Key}`;
+}
+
+/**
+ * Convert tweetnacl Ed25519 secret key to libp2p PrivateKey format (MM-29)
+ *
+ * @param secretKey - tweetnacl Ed25519 secret key (64 bytes)
+ * @returns libp2p Ed25519PrivateKey for IPNS operations
+ *
+ * @remarks
+ * tweetnacl Ed25519 secret keys are 64 bytes: [32-byte seed][32-byte public key]
+ * libp2p expects just the 32-byte seed for Ed25519 key generation.
+ * This function extracts the seed and creates a libp2p-compatible key pair.
+ *
+ * Used for IPNS record signing where the browser needs to create and sign
+ * IPNS records using the user's identity key before posting to validation-proxy.
+ */
+export async function convertToLibp2pPrivateKey(
+    secretKey: Uint8Array
+): Promise<Ed25519PrivateKey> {
+    // Extract the 32-byte seed from tweetnacl's 64-byte secret key
+    const seed = secretKey.slice(0, 32);
+
+    // Generate libp2p key pair from seed
+    const libp2pKey = await generateKeyPairFromSeed('Ed25519', seed);
+
+    return libp2pKey;
 }
 
 /**
@@ -412,7 +405,7 @@ export function base64ToBytes(base64: string): Uint8Array {
 const BASE58_ALPHABET =
     '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 
-function base58Encode(bytes: Uint8Array): string {
+export function base58Encode(bytes: Uint8Array): string {
     const digits = [0];
 
     for (let i = 0; i < bytes.length; i++) {

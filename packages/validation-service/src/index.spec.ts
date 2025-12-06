@@ -42,7 +42,7 @@ describe('Validation Service', () => {
             expect(response.body).toMatchObject({
                 status: 'healthy',
                 service: 'ajv-validation-sidecar',
-                schemas: ['taglist/v1', 'pubsub/head/v1'],
+                schemas: ['data/write/v1', 'pubsub/head/v1'],
             });
             expect(response.body.timestamp).toBeTypeOf('number');
         });
@@ -51,14 +51,14 @@ describe('Validation Service', () => {
             const response = await request(app).get('/schemas').expect(200);
 
             expect(response.body).toHaveProperty('schemas');
-            expect(response.body.schemas).toContain('taglist/v1');
+            expect(response.body.schemas).toContain('data/write/v1');
             expect(response.body.schemas).toContain('pubsub/head/v1');
             expect(response.body).toHaveProperty('definitions');
         });
     });
 
     describe('Schema Validation', () => {
-        describe('taglist/v1 schema', () => {
+        describe('data/write/v1 schema', () => {
             it('should validate correct encrypted taglist data', async () => {
                 const validEncryptedTaglist = {
                     id: crypto.randomUUID(),
@@ -74,14 +74,14 @@ describe('Validation Service', () => {
                 const response = await request(app)
                     .post('/validate')
                     .send({
-                        schema: 'taglist/v1',
+                        schema: 'data/write/v1',
                         json: validEncryptedTaglist,
                     })
                     .expect(200);
 
                 expect(response.body).toMatchObject({
                     valid: true,
-                    schema: 'taglist/v1',
+                    schema: 'data/write/v1',
                 });
                 expect(response.body.validationTime).toMatch(/^\d+(\.\d+)?ms$/);
             });
@@ -101,14 +101,14 @@ describe('Validation Service', () => {
                 const response = await request(app)
                     .post('/validate')
                     .send({
-                        schema: 'taglist/v1',
+                        schema: 'data/write/v1',
                         json: invalidTaglist,
                     })
                     .expect(400);
 
                 expect(response.body).toMatchObject({
                     valid: false,
-                    schema: 'taglist/v1',
+                    schema: 'data/write/v1',
                 });
                 expect(response.body.errors).toBeDefined();
                 expect(response.body.errors[0]).toMatchObject({
@@ -133,7 +133,7 @@ describe('Validation Service', () => {
                 const response = await request(app)
                     .post('/validate')
                     .send({
-                        schema: 'taglist/v1',
+                        schema: 'data/write/v1',
                         json: invalidTaglist,
                     })
                     .expect(400);
@@ -158,7 +158,7 @@ describe('Validation Service', () => {
                 const response = await request(app)
                     .post('/validate')
                     .send({
-                        schema: 'taglist/v1',
+                        schema: 'data/write/v1',
                         json: invalidTaglist,
                     })
                     .expect(400);
@@ -183,7 +183,7 @@ describe('Validation Service', () => {
                 const response = await request(app)
                     .post('/validate')
                     .send({
-                        schema: 'taglist/v1',
+                        schema: 'data/write/v1',
                         json: invalidTaglist,
                     })
                     .expect(400);
@@ -208,7 +208,7 @@ describe('Validation Service', () => {
                 const response = await request(app)
                     .post('/validate')
                     .send({
-                        schema: 'taglist/v1',
+                        schema: 'data/write/v1',
                         json: invalidTaglist,
                     })
                     .expect(400);
@@ -311,7 +311,7 @@ describe('Validation Service', () => {
             const response = await request(app)
                 .post('/validate')
                 .send({
-                    schema: 'taglist/v1',
+                    schema: 'data/write/v1',
                 })
                 .expect(400);
 
@@ -334,7 +334,7 @@ describe('Validation Service', () => {
                 valid: false,
                 error: 'Unknown schema: unknown/v1',
             });
-            expect(response.body.availableSchemas).toContain('taglist/v1');
+            expect(response.body.availableSchemas).toContain('data/write/v1');
             expect(response.body.availableSchemas).toContain('pubsub/head/v1');
         });
 
@@ -346,7 +346,6 @@ describe('Validation Service', () => {
             expect(response.body).toMatchObject({
                 error: 'Not found',
                 path: '/unknown-endpoint',
-                availableEndpoints: ['/health', '/validate', '/schemas'],
             });
         });
 
@@ -380,7 +379,7 @@ describe('Validation Service', () => {
             const response = await request(app)
                 .post('/validate')
                 .send({
-                    schema: 'taglist/v1',
+                    schema: 'data/write/v1',
                     json: validEncryptedTaglist,
                 })
                 .expect(200);
@@ -416,6 +415,293 @@ describe('Validation Service', () => {
                 .expect(204);
 
             expect(response.headers['access-control-allow-origin']).toBe('*');
+        });
+    });
+
+    describe('IPNS Record Validation', () => {
+        // Helper to create valid IPNS test data
+        async function createValidIpnsRecord() {
+            const { generateKeyPairFromSeed } = await import(
+                '@libp2p/crypto/keys'
+            );
+            const { createIPNSRecord, marshalIPNSRecord } = await import(
+                'ipns'
+            );
+            const { peerIdFromPublicKey } = await import('@libp2p/peer-id');
+            const { CID } = await import('multiformats/cid');
+
+            // Generate keypair
+            const seed = new Uint8Array(32);
+            crypto.getRandomValues(seed);
+            const privateKey = await generateKeyPairFromSeed('Ed25519', seed);
+            const peerId = peerIdFromPublicKey(privateKey.publicKey);
+
+            // Create IPNS record
+            const testCid = CID.parse(
+                'bafyreihyrpefhacm6kkp4ql6j6udakdit7g3dmkzfriqfykhjw6cad7lrm'
+            );
+            const ipnsRecord = await createIPNSRecord(
+                privateKey,
+                testCid,
+                0n,
+                86400000
+            );
+            const marshaledRecord = marshalIPNSRecord(ipnsRecord);
+
+            return {
+                peerId: peerId.toString(),
+                marshaledRecord: Buffer.from(marshaledRecord),
+                cid: testCid.toString(),
+            };
+        }
+
+        // Helper to create multipart/form-data body
+        function createMultipartBody(fileBuffer: Buffer): {
+            body: Buffer;
+            boundary: string;
+        } {
+            const boundary = `----WebKitFormBoundary${Date.now()}`;
+            const parts: Buffer[] = [];
+
+            // Start boundary
+            parts.push(Buffer.from(`--${boundary}\r\n`));
+
+            // Content-Disposition header with 'file' field name
+            parts.push(
+                Buffer.from(
+                    'Content-Disposition: form-data; name="file"; filename="record"\r\n'
+                )
+            );
+            parts.push(
+                Buffer.from('Content-Type: application/octet-stream\r\n\r\n')
+            );
+
+            // File content
+            parts.push(fileBuffer);
+
+            // End boundary
+            parts.push(Buffer.from(`\r\n--${boundary}--\r\n`));
+
+            return {
+                body: Buffer.concat(parts),
+                boundary,
+            };
+        }
+
+        it('should validate a correctly signed IPNS record', async () => {
+            const { peerId, marshaledRecord, cid } =
+                await createValidIpnsRecord();
+
+            const { body, boundary } = createMultipartBody(marshaledRecord);
+
+            const response = await request(app)
+                .post(`/validate/ipns/${peerId}`)
+                .set(
+                    'Content-Type',
+                    `multipart/form-data; boundary=${boundary}`
+                )
+                .send(body)
+                .expect(200);
+
+            expect(response.body).toMatchObject({
+                valid: true,
+                peerId: peerId,
+                value: `/ipfs/${cid}`,
+            });
+            expect(response.body.sequence).toBeDefined();
+        });
+
+        it('should reject IPNS record with invalid peer ID format', async () => {
+            const { marshaledRecord } = await createValidIpnsRecord();
+
+            const { body, boundary } = createMultipartBody(marshaledRecord);
+
+            const response = await request(app)
+                .post('/validate/ipns/invalid-peer-id')
+                .set(
+                    'Content-Type',
+                    `multipart/form-data; boundary=${boundary}`
+                )
+                .send(body)
+                .expect(400);
+
+            expect(response.body).toMatchObject({
+                valid: false,
+            });
+            expect(response.body.error).toContain('Invalid Peer ID format');
+        });
+
+        it('should reject IPNS record with missing peer ID', async () => {
+            const { marshaledRecord } = await createValidIpnsRecord();
+
+            const { body, boundary } = createMultipartBody(marshaledRecord);
+
+            const response = await request(app)
+                .post('/validate/ipns/')
+                .set(
+                    'Content-Type',
+                    `multipart/form-data; boundary=${boundary}`
+                )
+                .send(body)
+                .expect(404);
+
+            expect(response.body).toMatchObject({
+                error: 'Not found',
+            });
+        });
+
+        it('should reject request with missing body', async () => {
+            const { peerId } = await createValidIpnsRecord();
+
+            const response = await request(app)
+                .post(`/validate/ipns/${peerId}`)
+                .expect(400);
+
+            expect(response.body.valid).toBe(false);
+            expect(response.body.error).toContain('Empty request body');
+        });
+
+        it('should reject malformed IPNS record data', async () => {
+            const { peerId } = await createValidIpnsRecord();
+            const invalidRecord = Buffer.from('invalid-ipns-record-data');
+
+            const { body, boundary } = createMultipartBody(invalidRecord);
+
+            const response = await request(app)
+                .post(`/validate/ipns/${peerId}`)
+                .set(
+                    'Content-Type',
+                    `multipart/form-data; boundary=${boundary}`
+                )
+                .send(body)
+                .expect(400);
+
+            expect(response.body).toMatchObject({
+                valid: false,
+            });
+            expect(response.body.error).toContain(
+                'Failed to unmarshal IPNS record'
+            );
+        });
+
+        it('should reject IPNS record with mismatched peer ID (signature validation failure)', async () => {
+            const { marshaledRecord } = await createValidIpnsRecord();
+            const { peerId: differentPeerId } = await createValidIpnsRecord();
+
+            const { body, boundary } = createMultipartBody(marshaledRecord);
+
+            // Try to validate record signed by one peer ID using a different peer ID
+            const response = await request(app)
+                .post(`/validate/ipns/${differentPeerId}`)
+                .set(
+                    'Content-Type',
+                    `multipart/form-data; boundary=${boundary}`
+                )
+                .send(body)
+                .expect(400);
+
+            expect(response.body).toMatchObject({
+                valid: false,
+            });
+            expect(response.body.error).toContain(
+                'IPNS record validation failed'
+            );
+        });
+
+        it('should reject IPNS record with wrong content type', async () => {
+            const { peerId } = await createValidIpnsRecord();
+
+            // Send as JSON instead of multipart
+            const response = await request(app)
+                .post(`/validate/ipns/${peerId}`)
+                .set('Content-Type', 'application/json')
+                .send({ data: 'some-data' })
+                .expect(400);
+
+            expect(response.body).toMatchObject({
+                valid: false,
+            });
+            // JSON body won't be captured by express.raw for multipart, so will be empty
+            expect(response.body.error).toContain('Empty request body');
+        });
+
+        it('should handle empty request body', async () => {
+            const { peerId } = await createValidIpnsRecord();
+
+            const response = await request(app)
+                .post(`/validate/ipns/${peerId}`)
+                .expect(400);
+
+            expect(response.body.valid).toBe(false);
+            expect(response.body.error).toContain('Empty request body');
+        });
+
+        it('should validate multiple IPNS records sequentially', async () => {
+            // Test that the endpoint can handle multiple validations
+            const record1 = await createValidIpnsRecord();
+            const record2 = await createValidIpnsRecord();
+            const record3 = await createValidIpnsRecord();
+
+            const { body: body1, boundary: boundary1 } = createMultipartBody(
+                record1.marshaledRecord
+            );
+            const { body: body2, boundary: boundary2 } = createMultipartBody(
+                record2.marshaledRecord
+            );
+            const { body: body3, boundary: boundary3 } = createMultipartBody(
+                record3.marshaledRecord
+            );
+
+            const response1 = await request(app)
+                .post(`/validate/ipns/${record1.peerId}`)
+                .set(
+                    'Content-Type',
+                    `multipart/form-data; boundary=${boundary1}`
+                )
+                .send(body1)
+                .expect(200);
+
+            const response2 = await request(app)
+                .post(`/validate/ipns/${record2.peerId}`)
+                .set(
+                    'Content-Type',
+                    `multipart/form-data; boundary=${boundary2}`
+                )
+                .send(body2)
+                .expect(200);
+
+            const response3 = await request(app)
+                .post(`/validate/ipns/${record3.peerId}`)
+                .set(
+                    'Content-Type',
+                    `multipart/form-data; boundary=${boundary3}`
+                )
+                .send(body3)
+                .expect(200);
+
+            expect(response1.body.valid).toBe(true);
+            expect(response2.body.valid).toBe(true);
+            expect(response3.body.valid).toBe(true);
+        });
+
+        it('should complete IPNS validation quickly', async () => {
+            const { peerId, marshaledRecord } = await createValidIpnsRecord();
+
+            const { body, boundary } = createMultipartBody(marshaledRecord);
+
+            const start = Date.now();
+            await request(app)
+                .post(`/validate/ipns/${peerId}`)
+                .set(
+                    'Content-Type',
+                    `multipart/form-data; boundary=${boundary}`
+                )
+                .send(body)
+                .expect(200);
+            const duration = Date.now() - start;
+
+            // IPNS validation should be fast (under 100ms)
+            expect(duration).toBeLessThan(100);
         });
     });
 });
