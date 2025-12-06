@@ -403,8 +403,21 @@ export class IpfsService {
                 `IPNS: ${peerIdString}, CID: ${cidString}`
             );
 
-            // TODO(MM-36): Verify IPNS resolution
             // TODO(MM-36): Store IPNS record metadata (sequence number, timestamp)
+
+            // Verify IPNS resolution
+            const resolvedCid = await this.resolveIpns(peerIdString);
+
+            if (resolvedCid !== cidString) {
+                throw new Error(
+                    `IPNS resolution mismatch: ${resolvedCid} !== ${cidString}`
+                );
+            }
+
+            log.info(
+                '[IpfsService] IPNS verified successfully:',
+                `IPNS: ${peerIdString}, CID: ${cidString}`
+            );
 
             return peerIdString;
         } catch (error) {
