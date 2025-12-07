@@ -20,6 +20,9 @@
     },
     {
       "path": "./packages/orbitdb-service"
+    },
+    {
+      "path": "./packages/shared/orbitdb"
     }
   ]
 }
