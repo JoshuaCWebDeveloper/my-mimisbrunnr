@@ -603,7 +603,7 @@ describe('OrbitDbServiceManager', () => {
             // Get the event listener that was registered
             const onCalls = vi.mocked(mockDiscoveryLog.events.on).mock.calls;
             const updateListener = onCalls.find(
-                call => call[0] === 'update'
+                (call: unknown[]) => call[0] === 'update'
             )?.[1] as (entry: { hash: string }) => void;
 
             expect(updateListener).toBeDefined();
