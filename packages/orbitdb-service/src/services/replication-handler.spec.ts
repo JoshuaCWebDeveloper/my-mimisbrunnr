@@ -1,7 +1,7 @@
 // Unit tests for ReplicationHandler
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ReplicationHandler } from './replication-handler.js';
-import type { LogEntry } from './orbitdb-manager.js';
+import type { LogEntry } from './orbitdb-service-manager.js';
 import type { DiscoveryRecord } from '@my-mimisbrunnr/protocol';
 import type { Logger } from '../logger/logger.js';
 import type { HealthService } from '../health/health.service.js';

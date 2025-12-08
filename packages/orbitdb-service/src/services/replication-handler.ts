@@ -10,7 +10,7 @@ import {
     HealthStatus,
 } from '../health/health.service.js';
 import { IpfsClient } from './ipfs-client.js';
-import type { LogEntry } from './orbitdb-manager.js';
+import type { LogEntry } from './orbitdb-service-manager.js';
 
 interface PinnedEntry {
     hash: string;

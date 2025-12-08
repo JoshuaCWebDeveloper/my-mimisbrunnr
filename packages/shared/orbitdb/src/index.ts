@@ -1,1 +1,2 @@
-export * from './lib/orbitdb.js';
+export * from './lib/orbitdb-manager.js';
+export * from './lib/core.js';
