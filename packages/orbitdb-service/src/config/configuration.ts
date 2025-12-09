@@ -15,7 +15,7 @@ export class IpfsConfig {
 
     @IsOptional()
     @IsString()
-    gatewayUrl?: string;
+    gatewayMultiaddr?: string;
 
     @IsOptional()
     bootstrapNodes?: string[];
@@ -128,7 +128,7 @@ export default registerAs('app', () => {
     const config = {
         ipfs: {
             apiUrl: process.env.IPFS_API_URL ?? 'http://kubo:5001',
-            gatewayUrl: process.env.IPFS_GATEWAY_URL,
+            gatewayMultiaddr: process.env.IPFS_GATEWAY_MULTIADDR,
             bootstrapNodes: process.env.IPFS_BOOTSTRAP_NODES
                 ? process.env.IPFS_BOOTSTRAP_NODES.split(',')
                 : [],

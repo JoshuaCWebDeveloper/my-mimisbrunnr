@@ -17,6 +17,8 @@ import { identify } from '@libp2p/identify';
 import { gossipsub } from '@chainsafe/libp2p-gossipsub';
 import { noise } from '@chainsafe/libp2p-noise';
 import { yamux } from '@chainsafe/libp2p-yamux';
+import { Libp2pConnection } from '@my-mimisbrunnr/ipfs';
+import { AppConfiguration } from '../config/configuration.js';
 
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -33,6 +35,7 @@ export class HeliaNode
     implements OnModuleInit, OnModuleDestroy, HealthProvider
 {
     private helia: Helia<Libp2p<Record<string, unknown>>> | null = null;
+    private libp2pConnection: Libp2pConnection | null = null;
     private connectionStatus: HeliaConnectionStatus = {
         connected: false,
         lastCheck: 0,
@@ -68,24 +71,19 @@ export class HeliaNode
      * Initialize Helia node with connection to Kubo
      */
     async initialize(): Promise<void> {
-        const appConfig = this.configService.get('app');
-        const kuboApiUrl = appConfig.ipfs.apiUrl;
+        const appConfig = this.configService.get<AppConfiguration>(
+            'app'
+        ) as AppConfiguration;
+        const kuboMultiaddr = appConfig.ipfs.gatewayMultiaddr;
         const maxCooldown = 10 * 1000;
         let cooldown = 0;
 
         while (!this.connectionStatus.connected) {
             try {
                 this.logger.info(
-                    `🔗 Creating Helia node (will connect to Kubo at ${kuboApiUrl})`
+                    `🔗 Creating Helia node (will connect to Kubo at ${kuboMultiaddr})`
                 );
 
-                // Parse Kubo URL to extract host and port for multiaddr
-                const kuboUrl = new URL(kuboApiUrl);
-                const kuboHost = kuboUrl.hostname;
-                const kuboPort = kuboUrl.port || '5001';
-
-                // Note: We'll need to get the Kubo peer ID to create a proper multiaddr
-                // For now, we'll create Helia and let it discover Kubo through the network
                 const heliaConfig: HeliaInit<Libp2p<Record<string, unknown>>> =
                     {
                         libp2p: {
@@ -93,16 +91,13 @@ export class HeliaNode
                                 listen: ['/ip4/0.0.0.0/tcp/0'],
                             },
                             transports: [tcp()],
-                            peerDiscovery: [
-                                bootstrap({
-                                    list: [
-                                        `/dnsaddr/${kuboHost}/tcp/${kuboPort}`,
-                                        // Add more bootstrap nodes if configured
-                                        ...(appConfig.ipfs.bootstrapNodes ||
-                                            []),
-                                    ],
-                                }),
-                            ],
+                            peerDiscovery: appConfig.ipfs.bootstrapNodes?.length
+                                ? [
+                                      bootstrap({
+                                          list: appConfig.ipfs.bootstrapNodes,
+                                      }),
+                                  ]
+                                : undefined,
                             connectionEncrypters: [noise()],
                             streamMuxers: [yamux()],
                             services: {
@@ -122,6 +117,11 @@ export class HeliaNode
                 // Create Helia instance
                 this.helia = await createHelia(heliaConfig);
 
+                this.libp2pConnection = kuboMultiaddr ? new Libp2pConnection(
+                    this.helia.libp2p,
+                    kuboMultiaddr
+                ) : null;
+
                 // Update connection status
                 await this.updateConnectionStatus();
 
@@ -135,15 +135,10 @@ export class HeliaNode
                         .getMultiaddrs()
                         .map(ma => ma.toString()),
                 });
-
-                // Log Kubo connection intent
-                this.logger.info(
-                    `📡 Helia node will discover and connect to Kubo node at ${kuboHost}:${kuboPort}`
-                );
             } catch (error) {
                 this.logger.error('❌ Failed to initialize Helia node', {
                     error: error instanceof Error ? error.message : error,
-                    kuboApiUrl,
+                    kuboMultiaddr,
                 });
             }
             cooldown = Math.min(cooldown + 1000, maxCooldown);
@@ -162,12 +157,15 @@ export class HeliaNode
      * Check Helia node status
      */
     private async updateConnectionStatus(): Promise<boolean> {
+        const baseConnectionStatus = {
+            connected: false,
+            lastCheck: Date.now(),
+            peers: 0,
+        };
         if (!this.helia) {
             this.connectionStatus = {
-                connected: false,
-                lastCheck: Date.now(),
+                ...baseConnectionStatus,
                 error: 'Helia not initialized',
-                peers: 0,
             };
             return false;
         }
@@ -176,10 +174,23 @@ export class HeliaNode
             const peerId = this.helia.libp2p.peerId.toString();
             const peers = this.helia.libp2p.getPeers();
 
+            if (!this.libp2pConnection) {
+                this.connectionStatus = {
+                    ...baseConnectionStatus,
+                    error: 'Libp2p connection not initialized',
+                    peers: peers.length,
+                    peerId,
+                };
+                return false;
+            }
+
+            const libp2pConnectionStatus =
+                this.libp2pConnection.getConnectionInfo();
+
             this.connectionStatus = {
-                connected: true,
+                ...baseConnectionStatus,
+                connected: libp2pConnectionStatus.isConnected,
                 peerId,
-                lastCheck: Date.now(),
                 peers: peers.length,
             };
 
@@ -191,10 +202,8 @@ export class HeliaNode
             return true;
         } catch (error) {
             this.connectionStatus = {
-                connected: false,
-                lastCheck: Date.now(),
+                ...baseConnectionStatus,
                 error: error instanceof Error ? error.message : 'Unknown error',
-                peers: 0,
             };
 
             this.logger.debug('❌ Helia connection check failed', {
