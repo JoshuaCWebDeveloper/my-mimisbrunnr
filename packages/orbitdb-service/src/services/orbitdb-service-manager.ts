@@ -212,7 +212,7 @@ export class OrbitDbServiceManager
                 throw new Error('Invalid discovery record');
             }
 
-            const hash = await this.discoveryLog.addOperation(record);
+            const hash = await this.discoveryLog.add(record);
 
             this.loggerService.info(`➕ Discovery record added`, {
                 hash,
