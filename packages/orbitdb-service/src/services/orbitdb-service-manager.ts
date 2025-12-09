@@ -1,38 +1,21 @@
 // OrbitDB Manager service for discovery log management and replication
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { createOrbitDB } from '@orbitdb/core';
-import { DiscoveryRecord } from '@my-mimisbrunnr/protocol';
-// PROTOCOL constants are used via config.orbitdb.logName
-import { validateDiscoveryRecord } from '@my-mimisbrunnr/validation';
-import { Logger } from '../logger/logger.js';
+import type { BaseDatabase } from '@my-mimisbrunnr/orbitdb';
 import {
-    HealthService,
+    OrbitDbManager,
+    type OrbitDbManagerConfig,
+} from '@my-mimisbrunnr/orbitdb';
+import { DiscoveryRecord } from '@my-mimisbrunnr/protocol';
+import { validateDiscoveryRecord } from '@my-mimisbrunnr/validation';
+import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import {
     HealthProvider,
+    HealthService,
     HealthStatus,
 } from '../health/health.service.js';
+import { Logger } from '../logger/logger.js';
 import { HeliaNode } from './helia-node.js';
 import { ReplicationHandler } from './replication-handler.js';
-import { OrbitDB, BaseDatabase } from '@orbitdb/core';
-
-export interface LogStore<T = unknown> {
-    add: (data: T) => Promise<string>;
-    iterator: (options?: IteratorOptions) => Array<LogEntry<T>>;
-    load: (amount?: number) => Promise<void>;
-    close: () => Promise<void>;
-    address: {
-        toString: () => string;
-        root: string;
-    };
-    events: {
-        on: (event: string, callback: (...args: unknown[]) => void) => void;
-        off: (event: string, callback: (...args: unknown[]) => void) => void;
-    };
-    replicationStatus: {
-        progress: number;
-        max: number;
-    };
-}
 
 export interface LogEntry<T> {
     hash: string;
@@ -88,37 +71,56 @@ export interface ReplicationEvent {
 }
 
 @Injectable()
-export class OrbitDBManager
+export class OrbitDbServiceManager
+    extends OrbitDbManager
     implements OnModuleInit, OnModuleDestroy, HealthProvider
 {
-    private orbitdb?: OrbitDB; // OrbitDB v3 instance
-    private discoveryLog?: BaseDatabase; // OrbitDB v3 database
     private replicationHandlerInstance?: ReplicationHandler;
     private connectionStatus: OrbitDBConnectionStatus = {
         connected: false,
         peers: 0,
         lastUpdate: 0,
     };
-    private eventListeners: Map<string, (...args: unknown[]) => void> =
-        new Map();
 
     constructor(
         private readonly heliaNode: HeliaNode,
         private readonly replicationHandler: ReplicationHandler,
         private readonly healthService: HealthService,
-        private readonly logger: Logger,
-        private readonly configService: ConfigService
+        private readonly loggerService: Logger,
+        configService: ConfigService
     ) {
-        this.logger.info('OrbitDB Manager created');
+        const appConfig = configService.get('app');
+        const config: OrbitDbManagerConfig = {
+            logName: appConfig.orbitdb.logName,
+            dataDir: appConfig.orbitdb.dataDir,
+        };
+        super(config);
+        this.loggerService.info('OrbitDB Manager created');
     }
 
     async onModuleInit() {
-        this.logger.info('🔄 Initializing OrbitDB manager...');
-        await this.initialize();
-        await this.openDiscoveryLog();
+        this.loggerService.info('🔄 Initializing OrbitDB manager...');
+
+        // Wait for Helia to be ready
+        await this.heliaNode.awaitConnection();
+        const helia = this.heliaNode.getHeliaInstance();
+        if (!helia) {
+            throw new Error('Helia node not initialized');
+        }
+
+        // Initialize OrbitDB and open discovery log
+        await this.start(Promise.resolve(helia));
 
         // Set up replication handler
         this.setReplicationHandler(this.replicationHandler);
+
+        // Update connection status
+        this.connectionStatus = {
+            connected: true,
+            id: this.getId() ?? undefined,
+            peers: 0,
+            lastUpdate: Date.now(),
+        };
 
         const stats = await this.getDiscoveryLogStats();
         if (!stats) {
@@ -128,7 +130,7 @@ export class OrbitDBManager
         // Register with health service
         this.healthService.registerService('orbitdb', this);
 
-        this.logger.info('✅ OrbitDB manager initialized', {
+        this.loggerService.info('✅ OrbitDB manager initialized', {
             address: stats.address,
             entries: stats.entryCount,
         });
@@ -136,85 +138,7 @@ export class OrbitDBManager
 
     async onModuleDestroy() {
         this.healthService.unregisterService('orbitdb');
-        await this.shutdown();
-    }
-
-    /**
-     * Initialize OrbitDB instance and connect to Helia
-     */
-    async initialize(): Promise<void> {
-        try {
-            await this.heliaNode.awaitConnection();
-
-            // Create OrbitDB v3 instance with Helia
-            const helia = this.heliaNode.getHeliaInstance();
-            if (!helia) {
-                throw new Error('Helia node not initialized');
-            }
-
-            this.orbitdb = await createOrbitDB({
-                ipfs: helia,
-            });
-
-            this.connectionStatus = {
-                connected: true,
-                id: this.orbitdb?.id,
-                peers: 0,
-                lastUpdate: Date.now(),
-            };
-
-            const appConfig = this.configService.get('app');
-
-            this.logger.info(`✅ OrbitDB instance created with Helia`, {
-                id: this.orbitdb?.id,
-                directory: appConfig.orbitdb.dataDir,
-                heliaPeerId: helia.libp2p.peerId.toString(),
-            });
-        } catch (error) {
-            this.logger.error('Failed to initialize OrbitDB', {
-                error: error instanceof Error ? error.message : error,
-            });
-            throw error;
-        }
-    }
-
-    /**
-     * Open or create the discovery log database
-     */
-    async openDiscoveryLog(): Promise<void> {
-        if (!this.orbitdb) {
-            throw new Error('OrbitDB not initialized');
-        }
-
-        try {
-            const appConfig = this.configService.get('app');
-
-            this.logger.info(
-                `Opening discovery log: ${appConfig.orbitdb.logName}`
-            );
-
-            // Open the discovery log with the shared name from config (OrbitDB v3 API)
-            this.discoveryLog = await this.orbitdb.open(
-                appConfig.orbitdb.logName
-            );
-
-            // Set up event listeners for replication
-            this.setupEventListeners();
-
-            // Get entry count (OrbitDB v3 uses all() method)
-            const entries = (await this.discoveryLog.all()) as unknown[];
-            const entryCount = entries.length;
-            this.logger.info(`✅ Discovery log opened`, {
-                address: this.discoveryLog.address,
-                entries: entryCount,
-                logName: appConfig.orbitdb.logName,
-            });
-        } catch (error) {
-            this.logger.error('Failed to open discovery log', {
-                error: error instanceof Error ? error.message : error,
-            });
-            throw error;
-        }
+        await this.stop();
     }
 
     /**
@@ -222,7 +146,7 @@ export class OrbitDBManager
      */
     setReplicationHandler(handler: ReplicationHandler): void {
         this.replicationHandlerInstance = handler;
-        this.logger.debug('Replication handler set');
+        this.loggerService.debug('Replication handler set');
     }
 
     /**
@@ -230,14 +154,14 @@ export class OrbitDBManager
      */
     async handleReplication(address: string, hash: string): Promise<void> {
         if (!this.discoveryLog || !this.replicationHandlerInstance) {
-            this.logger.warn(
+            this.loggerService.warn(
                 'Discovery log or replication handler not available for replication event'
             );
             return;
         }
 
         try {
-            this.logger.debug(`Handling replication event`, {
+            this.loggerService.debug(`Handling replication event`, {
                 address,
                 hash,
             });
@@ -249,7 +173,7 @@ export class OrbitDBManager
             );
 
             if (!entry) {
-                this.logger.warn(`Entry not found for hash: ${hash}`);
+                this.loggerService.warn(`Entry not found for hash: ${hash}`);
                 return;
             }
 
@@ -258,11 +182,14 @@ export class OrbitDBManager
                 entry as LogEntry<DiscoveryRecord>
             );
 
-            this.logger.debug(`✅ Replication event handled successfully`, {
-                hash,
-            });
+            this.loggerService.debug(
+                `✅ Replication event handled successfully`,
+                {
+                    hash,
+                }
+            );
         } catch (error) {
-            this.logger.error('Error handling replication', {
+            this.loggerService.error('Error handling replication', {
                 address,
                 hash,
                 error: error instanceof Error ? error.message : error,
@@ -287,7 +214,7 @@ export class OrbitDBManager
 
             const hash = await this.discoveryLog.addOperation(record);
 
-            this.logger.info(`➕ Discovery record added`, {
+            this.loggerService.info(`➕ Discovery record added`, {
                 hash,
                 handle: record.handle,
                 did: record.did,
@@ -295,7 +222,7 @@ export class OrbitDBManager
 
             return hash;
         } catch (error) {
-            this.logger.error('Failed to add discovery record', {
+            this.loggerService.error('Failed to add discovery record', {
                 record,
                 error: error instanceof Error ? error.message : error,
             });
@@ -325,7 +252,7 @@ export class OrbitDBManager
                 peers: this.connectionStatus.peers,
             };
         } catch (error) {
-            this.logger.error('Error getting discovery log stats', {
+            this.loggerService.error('Error getting discovery log stats', {
                 error: error instanceof Error ? error.message : error,
             });
             return null;
@@ -336,7 +263,7 @@ export class OrbitDBManager
      * Get the discovery log instance
      */
     getDiscoveryLog(): BaseDatabase | null {
-        return this.discoveryLog || null;
+        return this.getDatabase();
     }
 
     /**
@@ -347,9 +274,11 @@ export class OrbitDBManager
     }
 
     /**
-     * Set up event listeners for OrbitDB replication
+     * Setup event listeners for OrbitDB replication events
+     *
+     * Implements abstract method from BaseOrbitDbServiceManager
      */
-    private setupEventListeners(): void {
+    protected override async setupEventListeners(): Promise<void> {
         if (!this.discoveryLog) {
             return;
         }
@@ -357,7 +286,9 @@ export class OrbitDBManager
         // OrbitDB v3 uses 'update' events
         const updateListener = (...args: unknown[]) => {
             const entry = args[0] as { hash: string };
-            this.logger.debug(`📡 Database updated`, { hash: entry.hash });
+            this.loggerService.debug(`📡 Database updated`, {
+                hash: entry.hash,
+            });
             this.handleReplication(
                 this.discoveryLog?.address || '',
                 entry.hash
@@ -365,63 +296,37 @@ export class OrbitDBManager
         };
 
         // Register listeners (OrbitDB v3 API)
-        this.discoveryLog.events.on('update', updateListener);
+        this.addEventListener('update', updateListener);
 
         // Store listeners for cleanup
-        this.eventListeners.set('update', updateListener);
-
-        this.logger.debug('✅ OrbitDB event listeners set up');
+        this.loggerService.debug('✅ OrbitDB event listeners set up');
     }
 
     /**
-     * Clean up event listeners
+     * Logging implementation using NestJS Logger
+     *
+     * Implements abstract method from BaseOrbitDbServiceManager
      */
-    private cleanupEventListeners(): void {
-        if (!this.discoveryLog) {
-            return;
-        }
+    protected override log(
+        level: 'debug' | 'info' | 'warn' | 'error',
+        message: string,
+        context?: Record<string, unknown>
+    ): void {
+        const logContext = context ? { ...context } : undefined;
 
-        for (const [event, listener] of this.eventListeners) {
-            this.discoveryLog.events.off(event, listener);
-        }
-
-        this.eventListeners.clear();
-        this.logger.debug('🧹 OrbitDB event listeners cleaned up');
-    }
-
-    /**
-     * Graceful shutdown
-     */
-    async shutdown(): Promise<void> {
-        try {
-            this.logger.info('Shutting down OrbitDB manager...');
-
-            // Clean up event listeners
-            this.cleanupEventListeners();
-
-            // Close discovery log
-            if (this.discoveryLog) {
-                await this.discoveryLog.close();
-                this.logger.debug('Discovery log closed');
-            }
-
-            // Stop OrbitDB (v3 uses stop() instead of disconnect())
-            if (this.orbitdb) {
-                await this.orbitdb.stop();
-                this.logger.debug('OrbitDB stopped');
-            }
-
-            this.connectionStatus = {
-                connected: false,
-                peers: 0,
-                lastUpdate: Date.now(),
-            };
-
-            this.logger.info('✅ OrbitDB manager shut down successfully');
-        } catch (error) {
-            this.logger.error('Error during OrbitDB shutdown', {
-                error: error instanceof Error ? error.message : error,
-            });
+        switch (level) {
+            case 'debug':
+                this.loggerService.debug(message, logContext);
+                break;
+            case 'info':
+                this.loggerService.info(message, logContext);
+                break;
+            case 'warn':
+                this.loggerService.warn(message, logContext);
+                break;
+            case 'error':
+                this.loggerService.error(message, logContext);
+                break;
         }
     }
 

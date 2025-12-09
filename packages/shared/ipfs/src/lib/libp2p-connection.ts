@@ -1,8 +1,6 @@
 import log from 'loglevel';
 import { multiaddr } from '@multiformats/multiaddr';
-import { webSockets } from '@libp2p/websockets';
 import type { Connection, Libp2p } from '@libp2p/interface';
-import type { Libp2pOptions } from 'libp2p';
 
 /**
  * Connection status enum for tracking perpetual node connection state
@@ -41,37 +39,15 @@ export class Libp2pConnection {
     private currentConnection: Connection | null = null;
 
     /**
-     * Create libp2p initialization options for createHelia()
-     *
-     * @param perpetualNodeMultiaddr - WebTransport multiaddr of the perpetual node
-     * @returns Libp2p configuration object to pass to createHelia()
-     */
-    static createLibp2pOptions(
-        perpetualNodeMultiaddr?: string
-    ): Partial<Libp2pOptions> {
-        return {
-            transports: [webSockets()],
-            addresses: {
-                listen: [], // Client-only mode
-            },
-            connectionGater: {
-                denyDialMultiaddr: m => {
-                    return m.toString() !== perpetualNodeMultiaddr;
-                },
-            },
-        };
-    }
-
-    /**
      * Create a new Libp2pConnection instance
      *
      * @param libp2p - The libp2p instance (from Helia)
      * @param addressList - Optional perpetual node multiaddr
      */
-    constructor(private libp2p: Libp2p, private addressList: string[] = []) {
+    constructor(private libp2p: Libp2p, private address: string) {
         log.info('[Libp2pConnection] Initializing connection manager', {
             peerId: this.libp2p.peerId.toString(),
-            addressList: this.addressList,
+            address: this.address,
         });
 
         // Setup connection event listeners
@@ -105,13 +81,10 @@ export class Libp2pConnection {
             });
 
             // Check if this is our address
-            const address = this.addressList.find(addr =>
-                addr.includes(peerId)
-            );
-            if (address) {
+            if (this.address.includes(peerId)) {
                 if (this.connectionStatus !== ConnectionStatus.CONNECTED) {
                     log.info(
-                        `[Libp2pConnection] Connected to ${address} successfully`,
+                        `[Libp2pConnection] Connected to ${this.address} successfully`,
                         {
                             peerId,
                             previousStatus: this.connectionStatus,
@@ -131,7 +104,7 @@ export class Libp2pConnection {
                     }
                 } else {
                     log.debug(
-                        `[Libp2pConnection] Connection event (already connected) for ${address}`,
+                        `[Libp2pConnection] Connection event (already connected) for ${this.address}`,
                         { peerId }
                     );
                 }
@@ -153,13 +126,10 @@ export class Libp2pConnection {
             });
 
             // Check if this is our address
-            const address = this.addressList.find(addr =>
-                addr.includes(peerId)
-            );
-            if (address) {
+            if (this.address.includes(peerId)) {
                 if (this.connectionStatus === ConnectionStatus.CONNECTED) {
                     log.warn(
-                        `[Libp2pConnection] Disconnected from ${address} - initiating reconnection`,
+                        `[Libp2pConnection] Disconnected from ${this.address} - initiating reconnection`,
                         {
                             peerId,
                             reconnectAttempts: this.reconnectAttempts,
@@ -170,7 +140,7 @@ export class Libp2pConnection {
                     this.scheduleReconnect();
                 } else {
                     log.debug(
-                        `[Libp2pConnection] Disconnect event (not in CONNECTED state) for ${address}`,
+                        `[Libp2pConnection] Disconnect event (not in CONNECTED state) for ${this.address}`,
                         { peerId, currentStatus: this.connectionStatus }
                     );
                 }
@@ -212,7 +182,7 @@ export class Libp2pConnection {
                     {
                         reconnectAttempts: this.reconnectAttempts,
                         maxReconnectAttempts: this.maxReconnectAttempts,
-                        addressList: this.addressList,
+                        address: this.address,
                     }
                 );
             } else if (status === ConnectionStatus.RECONNECTING) {
@@ -225,7 +195,7 @@ export class Libp2pConnection {
                     '[Libp2pConnection] Successfully established connection to perpetual node',
                     {
                         peerId: this.getPeerId(),
-                        addressList: this.addressList,
+                        address: this.address,
                     }
                 );
             }
@@ -267,10 +237,7 @@ export class Libp2pConnection {
             const connections = this.libp2p.getConnections();
             const addressedConnections = connections.filter(conn => {
                 const remotePeer = conn.remotePeer.toString();
-                const address = this.addressList.find(addr =>
-                    addr.includes(remotePeer)
-                );
-                return address ? true : false;
+                return this.address.includes(remotePeer) ? true : false;
             });
 
             log.debug('[Libp2pConnection] Connection health check', {
@@ -380,7 +347,7 @@ export class Libp2pConnection {
                 `[Libp2pConnection] Max reconnection attempts (${this.maxReconnectAttempts}) reached. Marking connection as FAILED.`,
                 {
                     reconnectAttempts: this.reconnectAttempts,
-                    addressList: this.addressList,
+                    address: this.address,
                 }
             );
             this.setConnectionStatus(ConnectionStatus.FAILED);
@@ -410,7 +377,7 @@ export class Libp2pConnection {
                 delay,
                 attempt: this.reconnectAttempts + 1,
                 maxAttempts: this.maxReconnectAttempts,
-                addressList: this.addressList,
+                address: this.address,
             }
         );
 
@@ -435,7 +402,7 @@ export class Libp2pConnection {
             return;
         }
 
-        if (this.addressList.length === 0) {
+        if (!this.address) {
             log.error(
                 '[Libp2pConnection] Cannot reconnect: no addresses configured'
             );
@@ -445,7 +412,7 @@ export class Libp2pConnection {
         log.info(
             `[Libp2pConnection] Attempting reconnection (attempt ${attemptNumber}/${this.maxReconnectAttempts})`,
             {
-                addressList: this.addressList,
+                address: this.address,
                 timestamp: new Date().toISOString(),
             }
         );
@@ -480,8 +447,8 @@ export class Libp2pConnection {
      * Connect to perpetual node via libp2p
      */
     async connect(): Promise<void> {
-        if (this.addressList.length === 0) {
-            throw new Error('No addresses configured');
+        if (!this.address) {
+            throw new Error('No address configured');
         }
 
         if (this.connectionStatus === ConnectionStatus.CONNECTING) {
@@ -496,11 +463,11 @@ export class Libp2pConnection {
 
             log.info(
                 '[Libp2pConnection] Connecting to perpetual node via libp2p:',
-                this.addressList
+                this.address
             );
 
             // Parse multiaddr and connect
-            const ma = multiaddr(this.addressList[0]);
+            const ma = multiaddr(this.address);
 
             log.info('[Libp2pConnection] Parsed multiaddr:', ma.toString());
 
@@ -559,8 +526,8 @@ export class Libp2pConnection {
      * Useful for testing or manual recovery
      */
     async reconnect(): Promise<void> {
-        if (this.addressList.length === 0) {
-            throw new Error('No addresses configured');
+        if (!this.address) {
+            throw new Error('No address configured');
         }
 
         log.info('[Libp2pConnection] Manual reconnection triggered', {
