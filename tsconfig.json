@@ -23,6 +23,9 @@
     },
     {
       "path": "./packages/shared/orbitdb"
+    },
+    {
+      "path": "./packages/shared/ipfs"
     }
   ]
 }
