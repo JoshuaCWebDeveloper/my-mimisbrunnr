@@ -25,7 +25,6 @@ describe('Libp2pConnection', () => {
     let mockLibp2p: Libp2p;
     let mockPeerId: PeerId;
     let mockConnection: Connection;
-    let mockMultiaddr: Multiaddr;
     let eventListeners: Map<string, Set<(...args: unknown[]) => void>>;
     let connection: Libp2pConnection;
 
@@ -51,11 +50,6 @@ describe('Libp2pConnection', () => {
             close: vi.fn().mockResolvedValue(undefined),
         } as unknown as Connection;
 
-        // Mock Multiaddr
-        mockMultiaddr = {
-            toString: () => TEST_ADDRESS,
-        } as Multiaddr;
-
         // Mock Libp2p
         mockLibp2p = {
             peerId: mockPeerId,
@@ -64,15 +58,19 @@ describe('Libp2pConnection', () => {
             peerStore: {
                 all: vi.fn().mockResolvedValue([]),
             },
-            addEventListener: vi.fn((event: string, listener: (...args: unknown[]) => void) => {
-                if (!eventListeners.has(event)) {
-                    eventListeners.set(event, new Set());
+            addEventListener: vi.fn(
+                (event: string, listener: (...args: unknown[]) => void) => {
+                    if (!eventListeners.has(event)) {
+                        eventListeners.set(event, new Set());
+                    }
+                    eventListeners.get(event)?.add(listener);
                 }
-                eventListeners.get(event)!.add(listener);
-            }),
-            removeEventListener: vi.fn((event: string, listener: (...args: unknown[]) => void) => {
-                eventListeners.get(event)?.delete(listener);
-            }),
+            ),
+            removeEventListener: vi.fn(
+                (event: string, listener: (...args: unknown[]) => void) => {
+                    eventListeners.get(event)?.delete(listener);
+                }
+            ),
         } as unknown as Libp2p;
 
         // Clear mock logs
@@ -107,7 +105,9 @@ describe('Libp2pConnection', () => {
             connection = new Libp2pConnection(mockLibp2p, TEST_ADDRESS);
 
             // Should be in CONNECTING state since constructor calls connect()
-            expect(connection.getConnectionStatus()).toBe(ConnectionStatus.CONNECTING);
+            expect(connection.getConnectionStatus()).toBe(
+                ConnectionStatus.CONNECTING
+            );
         });
 
         it('should setup event listeners on construction', () => {
@@ -132,7 +132,9 @@ describe('Libp2pConnection', () => {
         });
 
         it('should attempt initial connection on construction', async () => {
-            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockResolvedValue(mockConnection);
+            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockResolvedValue(
+                mockConnection
+            );
 
             connection = new Libp2pConnection(mockLibp2p, TEST_ADDRESS);
 
@@ -158,18 +160,24 @@ describe('Libp2pConnection', () => {
     describe('connect()', () => {
         it('should successfully connect to address', async () => {
             connection = new Libp2pConnection(mockLibp2p, TEST_ADDRESS);
-            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockResolvedValue(mockConnection);
+            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockResolvedValue(
+                mockConnection
+            );
 
             await connection.connect();
 
             expect(mockLibp2p.dial).toHaveBeenCalled();
-            expect(connection.getConnectionStatus()).toBe(ConnectionStatus.CONNECTED);
+            expect(connection.getConnectionStatus()).toBe(
+                ConnectionStatus.CONNECTED
+            );
         });
 
         it('should throw error when no address configured', async () => {
             connection = new Libp2pConnection(mockLibp2p, '');
 
-            await expect(connection.connect()).rejects.toThrow('No address configured');
+            await expect(connection.connect()).rejects.toThrow(
+                'No address configured'
+            );
         });
 
         it('should skip connection if already connecting', async () => {
@@ -192,7 +200,9 @@ describe('Libp2pConnection', () => {
             const connectPromise = connection.connect();
 
             // Check status before connection completes
-            expect(connection.getConnectionStatus()).toBe(ConnectionStatus.CONNECTING);
+            expect(connection.getConnectionStatus()).toBe(
+                ConnectionStatus.CONNECTING
+            );
 
             await connectPromise;
         });
@@ -207,7 +217,9 @@ describe('Libp2pConnection', () => {
 
         it('should handle connection errors', async () => {
             const error = new Error('Connection failed');
-            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockRejectedValue(error);
+            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockRejectedValue(
+                error
+            );
 
             connection = new Libp2pConnection(mockLibp2p, TEST_ADDRESS);
 
@@ -215,17 +227,22 @@ describe('Libp2pConnection', () => {
             await vi.runOnlyPendingTimersAsync();
 
             // Now explicitly call connect and expect it to fail
-            await expect(connection.connect()).rejects.toThrow('Connection failed');
-            expect(connection.getConnectionStatus()).toBe(ConnectionStatus.DISCONNECTED);
+            await expect(connection.connect()).rejects.toThrow(
+                'Connection failed'
+            );
+            expect(connection.getConnectionStatus()).toBe(
+                ConnectionStatus.DISCONNECTED
+            );
         });
 
         it('should log peer store info on connection failure', async () => {
             const error = new Error('Connection failed');
-            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockRejectedValue(error);
-            (mockLibp2p.peerStore.all as ReturnType<typeof vi.fn>).mockResolvedValue([
-                { id: 'peer1' },
-                { id: 'peer2' },
-            ]);
+            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockRejectedValue(
+                error
+            );
+            (
+                mockLibp2p.peerStore.all as ReturnType<typeof vi.fn>
+            ).mockResolvedValue([{ id: 'peer1' }, { id: 'peer2' }]);
 
             connection = new Libp2pConnection(mockLibp2p, TEST_ADDRESS);
 
@@ -253,7 +270,9 @@ describe('Libp2pConnection', () => {
     describe('Event Handling - peer:connect', () => {
         it('should handle peer:connect event for target address', async () => {
             connection = new Libp2pConnection(mockLibp2p, TEST_ADDRESS);
-            (mockLibp2p.getConnections as ReturnType<typeof vi.fn>).mockReturnValue([mockConnection]);
+            (
+                mockLibp2p.getConnections as ReturnType<typeof vi.fn>
+            ).mockReturnValue([mockConnection]);
 
             // Emit peer:connect event
             emitLibp2pEvent('peer:connect', mockPeerId);
@@ -268,17 +287,23 @@ describe('Libp2pConnection', () => {
 
         it('should transition to CONNECTED on peer:connect for target peer', async () => {
             connection = new Libp2pConnection(mockLibp2p, TEST_ADDRESS);
-            (mockLibp2p.getConnections as ReturnType<typeof vi.fn>).mockReturnValue([mockConnection]);
+            (
+                mockLibp2p.getConnections as ReturnType<typeof vi.fn>
+            ).mockReturnValue([mockConnection]);
 
             // Emit peer:connect event
             emitLibp2pEvent('peer:connect', mockPeerId);
 
-            expect(connection.getConnectionStatus()).toBe(ConnectionStatus.CONNECTED);
+            expect(connection.getConnectionStatus()).toBe(
+                ConnectionStatus.CONNECTED
+            );
         });
 
         it('should reset reconnect attempts on successful peer:connect', async () => {
             connection = new Libp2pConnection(mockLibp2p, TEST_ADDRESS);
-            (mockLibp2p.getConnections as ReturnType<typeof vi.fn>).mockReturnValue([mockConnection]);
+            (
+                mockLibp2p.getConnections as ReturnType<typeof vi.fn>
+            ).mockReturnValue([mockConnection]);
 
             // Emit peer:connect event
             emitLibp2pEvent('peer:connect', mockPeerId);
@@ -287,9 +312,13 @@ describe('Libp2pConnection', () => {
         });
 
         it('should clear pending reconnect timeout on peer:connect', async () => {
-            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockResolvedValue(mockConnection);
+            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockResolvedValue(
+                mockConnection
+            );
             connection = new Libp2pConnection(mockLibp2p, TEST_ADDRESS);
-            (mockLibp2p.getConnections as ReturnType<typeof vi.fn>).mockReturnValue([mockConnection]);
+            (
+                mockLibp2p.getConnections as ReturnType<typeof vi.fn>
+            ).mockReturnValue([mockConnection]);
 
             // Wait for initial connection to succeed
             await vi.runOnlyPendingTimersAsync();
@@ -310,7 +339,9 @@ describe('Libp2pConnection', () => {
         });
 
         it('should ignore peer:connect for other peers', async () => {
-            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Failed'));
+            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockRejectedValue(
+                new Error('Failed')
+            );
             connection = new Libp2pConnection(mockLibp2p, TEST_ADDRESS);
 
             // Wait for constructor's connection to fail
@@ -320,7 +351,9 @@ describe('Libp2pConnection', () => {
                 toString: () => 'OtherPeerId',
             } as PeerId;
 
-            (mockLibp2p.getConnections as ReturnType<typeof vi.fn>).mockReturnValue([]);
+            (
+                mockLibp2p.getConnections as ReturnType<typeof vi.fn>
+            ).mockReturnValue([]);
 
             // After constructor's failed connection and reconnect scheduling, should be RECONNECTING
             const initialStatus = connection.getConnectionStatus();
@@ -339,7 +372,9 @@ describe('Libp2pConnection', () => {
 
             // First connect
             emitLibp2pEvent('peer:connect', mockPeerId);
-            (mockLibp2p.getConnections as ReturnType<typeof vi.fn>).mockReturnValue([mockConnection]);
+            (
+                mockLibp2p.getConnections as ReturnType<typeof vi.fn>
+            ).mockReturnValue([mockConnection]);
 
             // Then disconnect
             emitLibp2pEvent('peer:disconnect', mockPeerId);
@@ -354,21 +389,29 @@ describe('Libp2pConnection', () => {
 
         it('should transition to DISCONNECTED and schedule reconnect on peer:disconnect', async () => {
             connection = new Libp2pConnection(mockLibp2p, TEST_ADDRESS);
-            (mockLibp2p.getConnections as ReturnType<typeof vi.fn>).mockReturnValue([mockConnection]);
+            (
+                mockLibp2p.getConnections as ReturnType<typeof vi.fn>
+            ).mockReturnValue([mockConnection]);
 
             // Connect first
             emitLibp2pEvent('peer:connect', mockPeerId);
-            expect(connection.getConnectionStatus()).toBe(ConnectionStatus.CONNECTED);
+            expect(connection.getConnectionStatus()).toBe(
+                ConnectionStatus.CONNECTED
+            );
 
             // Then disconnect
             emitLibp2pEvent('peer:disconnect', mockPeerId);
 
-            expect(connection.getConnectionStatus()).toBe(ConnectionStatus.RECONNECTING);
+            expect(connection.getConnectionStatus()).toBe(
+                ConnectionStatus.RECONNECTING
+            );
         });
 
         it('should ignore peer:disconnect for other peers', async () => {
             connection = new Libp2pConnection(mockLibp2p, TEST_ADDRESS);
-            (mockLibp2p.getConnections as ReturnType<typeof vi.fn>).mockReturnValue([mockConnection]);
+            (
+                mockLibp2p.getConnections as ReturnType<typeof vi.fn>
+            ).mockReturnValue([mockConnection]);
 
             const otherPeerId = {
                 toString: () => 'OtherPeerId',
@@ -381,14 +424,18 @@ describe('Libp2pConnection', () => {
             emitLibp2pEvent('peer:disconnect', otherPeerId);
 
             // Should still be connected
-            expect(connection.getConnectionStatus()).toBe(ConnectionStatus.CONNECTED);
+            expect(connection.getConnectionStatus()).toBe(
+                ConnectionStatus.CONNECTED
+            );
         });
     });
 
     describe('Connection Monitoring', () => {
         it('should periodically check connection health', async () => {
             connection = new Libp2pConnection(mockLibp2p, TEST_ADDRESS);
-            (mockLibp2p.getConnections as ReturnType<typeof vi.fn>).mockReturnValue([mockConnection]);
+            (
+                mockLibp2p.getConnections as ReturnType<typeof vi.fn>
+            ).mockReturnValue([mockConnection]);
 
             // Fast-forward 30 seconds
             await vi.advanceTimersByTimeAsync(30000);
@@ -403,11 +450,15 @@ describe('Libp2pConnection', () => {
             connection = new Libp2pConnection(mockLibp2p, TEST_ADDRESS);
 
             // Start connected
-            (mockLibp2p.getConnections as ReturnType<typeof vi.fn>).mockReturnValue([mockConnection]);
+            (
+                mockLibp2p.getConnections as ReturnType<typeof vi.fn>
+            ).mockReturnValue([mockConnection]);
             emitLibp2pEvent('peer:connect', mockPeerId);
 
             // Simulate disconnection
-            (mockLibp2p.getConnections as ReturnType<typeof vi.fn>).mockReturnValue([]);
+            (
+                mockLibp2p.getConnections as ReturnType<typeof vi.fn>
+            ).mockReturnValue([]);
 
             // Trigger health check
             await vi.advanceTimersByTimeAsync(30000);
@@ -416,7 +467,9 @@ describe('Libp2pConnection', () => {
                 '[Libp2pConnection] Connection health check: No active connections to perpetual node detected',
                 expect.any(Object)
             );
-            expect(connection.getConnectionStatus()).toBe(ConnectionStatus.RECONNECTING);
+            expect(connection.getConnectionStatus()).toBe(
+                ConnectionStatus.RECONNECTING
+            );
         });
 
         it('should detect unhealthy connection during health check', async () => {
@@ -427,9 +480,9 @@ describe('Libp2pConnection', () => {
                 status: 'closing',
             };
 
-            (mockLibp2p.getConnections as ReturnType<typeof vi.fn>).mockReturnValue([
-                unhealthyConnection,
-            ]);
+            (
+                mockLibp2p.getConnections as ReturnType<typeof vi.fn>
+            ).mockReturnValue([unhealthyConnection]);
             emitLibp2pEvent('peer:connect', mockPeerId);
 
             // Trigger health check
@@ -464,8 +517,12 @@ describe('Libp2pConnection', () => {
 
     describe('Reconnection Logic', () => {
         it('should schedule reconnection with exponential backoff', async () => {
-            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockResolvedValue(mockConnection);
-            (mockLibp2p.getConnections as ReturnType<typeof vi.fn>).mockReturnValue([mockConnection]);
+            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockResolvedValue(
+                mockConnection
+            );
+            (
+                mockLibp2p.getConnections as ReturnType<typeof vi.fn>
+            ).mockReturnValue([mockConnection]);
 
             connection = new Libp2pConnection(mockLibp2p, TEST_ADDRESS);
 
@@ -473,7 +530,9 @@ describe('Libp2pConnection', () => {
             await vi.runOnlyPendingTimersAsync();
 
             // Should be CONNECTED after successful connection
-            expect(connection.getConnectionStatus()).toBe(ConnectionStatus.CONNECTED);
+            expect(connection.getConnectionStatus()).toBe(
+                ConnectionStatus.CONNECTED
+            );
 
             // Clear logs and trigger disconnect
             vi.clearAllMocks();
@@ -486,8 +545,12 @@ describe('Libp2pConnection', () => {
         });
 
         it('should increase delay with exponential backoff', async () => {
-            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockResolvedValue(mockConnection);
-            (mockLibp2p.getConnections as ReturnType<typeof vi.fn>).mockReturnValue([mockConnection]);
+            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockResolvedValue(
+                mockConnection
+            );
+            (
+                mockLibp2p.getConnections as ReturnType<typeof vi.fn>
+            ).mockReturnValue([mockConnection]);
 
             connection = new Libp2pConnection(mockLibp2p, TEST_ADDRESS);
 
@@ -529,8 +592,12 @@ describe('Libp2pConnection', () => {
         });
 
         it('should cap reconnection delay at max delay', async () => {
-            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockResolvedValue(mockConnection);
-            (mockLibp2p.getConnections as ReturnType<typeof vi.fn>).mockReturnValue([mockConnection]);
+            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockResolvedValue(
+                mockConnection
+            );
+            (
+                mockLibp2p.getConnections as ReturnType<typeof vi.fn>
+            ).mockReturnValue([mockConnection]);
 
             connection = new Libp2pConnection(mockLibp2p, TEST_ADDRESS);
 
@@ -605,11 +672,15 @@ describe('Libp2pConnection', () => {
             await vi.runOnlyPendingTimersAsync();
 
             // Trigger first reconnect
-            (mockLibp2p.getConnections as ReturnType<typeof vi.fn>).mockReturnValue([mockConnection]);
+            (
+                mockLibp2p.getConnections as ReturnType<typeof vi.fn>
+            ).mockReturnValue([mockConnection]);
             emitLibp2pEvent('peer:connect', mockPeerId);
             emitLibp2pEvent('peer:disconnect', mockPeerId);
 
-            expect(connection.getConnectionStatus()).toBe(ConnectionStatus.RECONNECTING);
+            expect(connection.getConnectionStatus()).toBe(
+                ConnectionStatus.RECONNECTING
+            );
 
             // Clear logs
             vi.clearAllMocks();
@@ -636,7 +707,9 @@ describe('Libp2pConnection', () => {
             );
 
             // Connect then disconnect to start reconnection cycle
-            (mockLibp2p.getConnections as ReturnType<typeof vi.fn>).mockReturnValue([mockConnection]);
+            (
+                mockLibp2p.getConnections as ReturnType<typeof vi.fn>
+            ).mockReturnValue([mockConnection]);
             emitLibp2pEvent('peer:connect', mockPeerId);
 
             // Simulate max reconnect attempts (Infinity by default, so we need to test the logic)
@@ -654,7 +727,9 @@ describe('Libp2pConnection', () => {
     describe('reconnect()', () => {
         it('should manually trigger reconnection', async () => {
             connection = new Libp2pConnection(mockLibp2p, TEST_ADDRESS);
-            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockResolvedValue(mockConnection);
+            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockResolvedValue(
+                mockConnection
+            );
 
             await connection.reconnect();
 
@@ -666,8 +741,12 @@ describe('Libp2pConnection', () => {
         });
 
         it('should reset reconnect attempts on manual reconnection', async () => {
-            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockResolvedValue(mockConnection);
-            (mockLibp2p.getConnections as ReturnType<typeof vi.fn>).mockReturnValue([mockConnection]);
+            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockResolvedValue(
+                mockConnection
+            );
+            (
+                mockLibp2p.getConnections as ReturnType<typeof vi.fn>
+            ).mockReturnValue([mockConnection]);
 
             connection = new Libp2pConnection(mockLibp2p, TEST_ADDRESS);
 
@@ -687,7 +766,9 @@ describe('Libp2pConnection', () => {
             await vi.runOnlyPendingTimersAsync();
 
             // Manually call reconnect with success - this should reset counter
-            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockResolvedValue(mockConnection);
+            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockResolvedValue(
+                mockConnection
+            );
 
             await connection.reconnect();
 
@@ -697,7 +778,9 @@ describe('Libp2pConnection', () => {
 
         it('should close existing connection before manual reconnect', async () => {
             connection = new Libp2pConnection(mockLibp2p, TEST_ADDRESS);
-            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockResolvedValue(mockConnection);
+            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockResolvedValue(
+                mockConnection
+            );
 
             // Establish initial connection
             await connection.connect();
@@ -710,15 +793,17 @@ describe('Libp2pConnection', () => {
 
         it('should handle errors when closing existing connection', async () => {
             connection = new Libp2pConnection(mockLibp2p, TEST_ADDRESS);
-            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockResolvedValue(mockConnection);
+            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockResolvedValue(
+                mockConnection
+            );
 
             // Establish initial connection
             await connection.connect();
 
             // Make close throw error
-            (mockConnection.close as ReturnType<typeof vi.fn>).mockRejectedValue(
-                new Error('Close failed')
-            );
+            (
+                mockConnection.close as ReturnType<typeof vi.fn>
+            ).mockRejectedValue(new Error('Close failed'));
 
             // Should not throw, just log warning
             await connection.reconnect();
@@ -732,14 +817,18 @@ describe('Libp2pConnection', () => {
         it('should throw error when no address configured', async () => {
             connection = new Libp2pConnection(mockLibp2p, '');
 
-            await expect(connection.reconnect()).rejects.toThrow('No address configured');
+            await expect(connection.reconnect()).rejects.toThrow(
+                'No address configured'
+            );
         });
     });
 
     describe('shutdown()', () => {
         it('should successfully shutdown connection manager', async () => {
             connection = new Libp2pConnection(mockLibp2p, TEST_ADDRESS);
-            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockResolvedValue(mockConnection);
+            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockResolvedValue(
+                mockConnection
+            );
 
             await connection.connect();
             await connection.shutdown();
@@ -747,7 +836,9 @@ describe('Libp2pConnection', () => {
             expect(log.info).toHaveBeenCalledWith(
                 '[Libp2pConnection] Connection manager shut down successfully'
             );
-            expect(connection.getConnectionStatus()).toBe(ConnectionStatus.DISCONNECTED);
+            expect(connection.getConnectionStatus()).toBe(
+                ConnectionStatus.DISCONNECTED
+            );
         });
 
         it('should set shutdown flag', async () => {
@@ -777,7 +868,9 @@ describe('Libp2pConnection', () => {
             connection = new Libp2pConnection(mockLibp2p, TEST_ADDRESS);
 
             // Trigger reconnect
-            (mockLibp2p.getConnections as ReturnType<typeof vi.fn>).mockReturnValue([mockConnection]);
+            (
+                mockLibp2p.getConnections as ReturnType<typeof vi.fn>
+            ).mockReturnValue([mockConnection]);
             emitLibp2pEvent('peer:connect', mockPeerId);
             emitLibp2pEvent('peer:disconnect', mockPeerId);
 
@@ -792,7 +885,9 @@ describe('Libp2pConnection', () => {
 
         it('should close current connection', async () => {
             connection = new Libp2pConnection(mockLibp2p, TEST_ADDRESS);
-            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockResolvedValue(mockConnection);
+            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockResolvedValue(
+                mockConnection
+            );
 
             await connection.connect();
             await connection.shutdown();
@@ -802,13 +897,15 @@ describe('Libp2pConnection', () => {
 
         it('should handle errors when closing connection', async () => {
             connection = new Libp2pConnection(mockLibp2p, TEST_ADDRESS);
-            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockResolvedValue(mockConnection);
+            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockResolvedValue(
+                mockConnection
+            );
 
             await connection.connect();
 
-            (mockConnection.close as ReturnType<typeof vi.fn>).mockRejectedValue(
-                new Error('Close failed')
-            );
+            (
+                mockConnection.close as ReturnType<typeof vi.fn>
+            ).mockRejectedValue(new Error('Close failed'));
 
             await connection.shutdown();
 
@@ -822,11 +919,15 @@ describe('Libp2pConnection', () => {
             connection = new Libp2pConnection(mockLibp2p, TEST_ADDRESS);
 
             // Make connection.close throw after setting currentConnection
-            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockResolvedValue(mockConnection);
+            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockResolvedValue(
+                mockConnection
+            );
             await connection.connect();
 
             const shutdownError = new Error('Shutdown failed');
-            (mockConnection.close as ReturnType<typeof vi.fn>).mockRejectedValue(shutdownError);
+            (
+                mockConnection.close as ReturnType<typeof vi.fn>
+            ).mockRejectedValue(shutdownError);
 
             // Shutdown should still complete but log the error
             await connection.shutdown();
@@ -849,15 +950,19 @@ describe('Libp2pConnection', () => {
             connection = new Libp2pConnection(mockLibp2p, TEST_ADDRESS);
 
             // Constructor starts connecting immediately
-            expect(connection.getConnectionStatus()).toBe(ConnectionStatus.CONNECTING);
+            expect(connection.getConnectionStatus()).toBe(
+                ConnectionStatus.CONNECTING
+            );
         });
 
         it('should return detailed connection info when connected', async () => {
             connection = new Libp2pConnection(mockLibp2p, TEST_ADDRESS);
-            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockResolvedValue(mockConnection);
-            (mockLibp2p.getConnections as ReturnType<typeof vi.fn>).mockReturnValue([
-                mockConnection,
-            ]);
+            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockResolvedValue(
+                mockConnection
+            );
+            (
+                mockLibp2p.getConnections as ReturnType<typeof vi.fn>
+            ).mockReturnValue([mockConnection]);
 
             await connection.connect();
 
@@ -896,34 +1001,54 @@ describe('Libp2pConnection', () => {
 
     describe('Status Transitions', () => {
         it('should transition CONNECTING → CONNECTED', async () => {
-            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockResolvedValue(mockConnection);
-            (mockLibp2p.getConnections as ReturnType<typeof vi.fn>).mockReturnValue([mockConnection]);
+            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockResolvedValue(
+                mockConnection
+            );
+            (
+                mockLibp2p.getConnections as ReturnType<typeof vi.fn>
+            ).mockReturnValue([mockConnection]);
 
             connection = new Libp2pConnection(mockLibp2p, TEST_ADDRESS);
 
             // Constructor starts connecting immediately
-            expect(connection.getConnectionStatus()).toBe(ConnectionStatus.CONNECTING);
+            expect(connection.getConnectionStatus()).toBe(
+                ConnectionStatus.CONNECTING
+            );
 
             // Wait only for the connect promise to resolve, not all timers
-            await vi.waitFor(() => {
-                return connection.getConnectionStatus() === ConnectionStatus.CONNECTED;
-            }, { timeout: 100 });
+            await vi.waitFor(
+                () => {
+                    return (
+                        connection.getConnectionStatus() ===
+                        ConnectionStatus.CONNECTED
+                    );
+                },
+                { timeout: 100 }
+            );
 
-            expect(connection.getConnectionStatus()).toBe(ConnectionStatus.CONNECTED);
+            expect(connection.getConnectionStatus()).toBe(
+                ConnectionStatus.CONNECTED
+            );
         });
 
         it('should transition CONNECTED → DISCONNECTED → RECONNECTING', async () => {
             connection = new Libp2pConnection(mockLibp2p, TEST_ADDRESS);
-            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockResolvedValue(mockConnection);
-            (mockLibp2p.getConnections as ReturnType<typeof vi.fn>).mockReturnValue([
-                mockConnection,
-            ]);
+            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockResolvedValue(
+                mockConnection
+            );
+            (
+                mockLibp2p.getConnections as ReturnType<typeof vi.fn>
+            ).mockReturnValue([mockConnection]);
 
             await connection.connect();
-            expect(connection.getConnectionStatus()).toBe(ConnectionStatus.CONNECTED);
+            expect(connection.getConnectionStatus()).toBe(
+                ConnectionStatus.CONNECTED
+            );
 
             emitLibp2pEvent('peer:disconnect', mockPeerId);
-            expect(connection.getConnectionStatus()).toBe(ConnectionStatus.RECONNECTING);
+            expect(connection.getConnectionStatus()).toBe(
+                ConnectionStatus.RECONNECTING
+            );
         });
 
         it('should log status transitions', async () => {
@@ -964,10 +1089,12 @@ describe('Libp2pConnection', () => {
 
         it('should handle rapid connect/disconnect cycles', async () => {
             connection = new Libp2pConnection(mockLibp2p, TEST_ADDRESS);
-            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockResolvedValue(mockConnection);
-            (mockLibp2p.getConnections as ReturnType<typeof vi.fn>).mockReturnValue([
-                mockConnection,
-            ]);
+            (mockLibp2p.dial as ReturnType<typeof vi.fn>).mockResolvedValue(
+                mockConnection
+            );
+            (
+                mockLibp2p.getConnections as ReturnType<typeof vi.fn>
+            ).mockReturnValue([mockConnection]);
 
             // Connect
             await connection.connect();
@@ -979,14 +1106,18 @@ describe('Libp2pConnection', () => {
             emitLibp2pEvent('peer:connect', mockPeerId);
 
             // Should be connected
-            expect(connection.getConnectionStatus()).toBe(ConnectionStatus.CONNECTED);
+            expect(connection.getConnectionStatus()).toBe(
+                ConnectionStatus.CONNECTED
+            );
         });
 
         it('should handle health check errors gracefully', async () => {
             connection = new Libp2pConnection(mockLibp2p, TEST_ADDRESS);
 
             // Make getConnections throw
-            (mockLibp2p.getConnections as ReturnType<typeof vi.fn>).mockImplementation(() => {
+            (
+                mockLibp2p.getConnections as ReturnType<typeof vi.fn>
+            ).mockImplementation(() => {
                 throw new Error('getConnections failed');
             });
 
@@ -1003,14 +1134,16 @@ describe('Libp2pConnection', () => {
 
         it('should handle event listener errors gracefully', () => {
             // Mock addEventListener to throw
-            (mockLibp2p.addEventListener as ReturnType<typeof vi.fn>).mockImplementation(() => {
+            (
+                mockLibp2p.addEventListener as ReturnType<typeof vi.fn>
+            ).mockImplementation(() => {
                 throw new Error('addEventListener failed');
             });
 
             // Should throw during construction if addEventListener fails
-            expect(() => new Libp2pConnection(mockLibp2p, TEST_ADDRESS)).toThrow(
-                'addEventListener failed'
-            );
+            expect(
+                () => new Libp2pConnection(mockLibp2p, TEST_ADDRESS)
+            ).toThrow('addEventListener failed');
         });
     });
 });

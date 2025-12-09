@@ -117,10 +117,9 @@ export class HeliaNode
                 // Create Helia instance
                 this.helia = await createHelia(heliaConfig);
 
-                this.libp2pConnection = kuboMultiaddr ? new Libp2pConnection(
-                    this.helia.libp2p,
-                    kuboMultiaddr
-                ) : null;
+                this.libp2pConnection = kuboMultiaddr
+                    ? new Libp2pConnection(this.helia.libp2p, kuboMultiaddr)
+                    : null;
 
                 // Update connection status
                 await this.updateConnectionStatus();
