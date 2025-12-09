@@ -4,6 +4,12 @@
   "include": [],
   "references": [
     {
+      "path": "../shared/ipfs"
+    },
+    {
+      "path": "../shared/orbitdb"
+    },
+    {
       "path": "../shared/protocol"
     },
     {

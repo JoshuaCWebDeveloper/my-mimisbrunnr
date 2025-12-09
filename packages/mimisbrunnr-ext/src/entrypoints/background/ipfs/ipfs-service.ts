@@ -1,17 +1,20 @@
-import log from 'loglevel';
-import { createHelia, type Helia } from 'helia';
+import { gossipsub } from '@chainsafe/libp2p-gossipsub';
 import { dagJson, type DAGJSON } from '@helia/dag-json';
-import { createIPNSRecord, marshalIPNSRecord } from 'ipns';
+import { identify } from '@libp2p/identify';
+import type { Ed25519PrivateKey } from '@libp2p/interface';
 import { peerIdFromPublicKey } from '@libp2p/peer-id';
+import { webSockets } from '@libp2p/websockets';
+import { Libp2pConnection } from '@my-mimisbrunnr/ipfs';
 import { MemoryBlockstore } from 'blockstore-core';
 import { MemoryDatastore } from 'datastore-core';
+import { createHelia, type Helia } from 'helia';
+import { createIPNSRecord, marshalIPNSRecord } from 'ipns';
 import {
     create as createKuboClient,
     type KuboRPCClient,
 } from 'kubo-rpc-client';
-import { Libp2pConnection } from './libp2p-connection.js';
+import log from 'loglevel';
 import { CID } from 'multiformats/cid';
-import type { Ed25519PrivateKey } from '@libp2p/interface';
 
 export interface AddObjectOptions {
     pin?: boolean;
@@ -90,9 +93,23 @@ export class IpfsService {
             this.helia = await createHelia({
                 blockstore: new MemoryBlockstore(),
                 datastore: new MemoryDatastore(),
-                libp2p: Libp2pConnection.createLibp2pOptions(
-                    perpetualNodeMultiaddr
-                ),
+                libp2p: {
+                    transports: [webSockets()],
+                    addresses: {
+                        listen: [], // Client-only mode
+                    },
+                    connectionGater: {
+                        denyDialMultiaddr: m => {
+                            return m.toString() !== perpetualNodeMultiaddr;
+                        },
+                    },
+                    services: {
+                        identify: identify(),
+                        pubsub: gossipsub({
+                            allowPublishToZeroTopicPeers: true,
+                        }),
+                    },
+                },
             });
 
             // Initialize DAG-JSON codec for publishing/retrieving JSON data with dag-json encoding
@@ -105,10 +122,12 @@ export class IpfsService {
             );
 
             // Initialize libp2p connection manager (Connection #1: libp2p for Bitswap)
-            this.libp2pConnection = new Libp2pConnection(
-                this.helia.libp2p,
-                perpetualNodeMultiaddr ? [perpetualNodeMultiaddr] : []
-            );
+            this.libp2pConnection = perpetualNodeMultiaddr
+                ? new Libp2pConnection(
+                      this.helia.libp2p,
+                      perpetualNodeMultiaddr
+                  )
+                : null;
         } catch (error) {
             log.error('[IpfsService] Failed to initialize Helia:', error);
             // TODO(MM-36): Add proper error handling and user notification
