@@ -21,6 +21,10 @@ export enum MessageType {
     HAS_IDENTITY = 'HAS_IDENTITY',
     IS_IDENTITY_UNLOCKED = 'IS_IDENTITY_UNLOCKED',
     GET_IDENTITY_INFO = 'GET_IDENTITY_INFO',
+    // Discovery operations (MM-30)
+    PUBLISH_DISCOVERY = 'PUBLISH_DISCOVERY',
+    DISCOVER_BY_HANDLE = 'DISCOVER_BY_HANDLE',
+    GET_DISCOVERY_STATUS = 'GET_DISCOVERY_STATUS',
 }
 
 export type MessageError = {
@@ -131,6 +135,29 @@ export type Message<T extends MessageType = MessageType> =
               type: T;
               body: never;
               response: { did: string; handle: string } | null;
+          }
+        : T extends MessageType.PUBLISH_DISCOVERY
+        ? {
+              type: T;
+              body: never;
+              response: { success: boolean };
+          }
+        : T extends MessageType.DISCOVER_BY_HANDLE
+        ? {
+              type: T;
+              body: { handle: string };
+              response: {
+                  handle: string;
+                  ipnsKey: string;
+                  did: string;
+                  updatedAt: number;
+              } | null;
+          }
+        : T extends MessageType.GET_DISCOVERY_STATUS
+        ? {
+              type: T;
+              body: never;
+              response: { isInitialized: boolean; orbitdbId: string | null };
           }
         : never;
 

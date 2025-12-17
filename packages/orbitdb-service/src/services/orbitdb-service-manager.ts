@@ -16,6 +16,8 @@ import {
 import { Logger } from '../logger/logger.js';
 import { HeliaNode } from './helia-node.js';
 import { ReplicationHandler } from './replication-handler.js';
+import { AppConfiguration } from 'src/config/configuration.js';
+import { IpfsCodec } from './helia-node.js';
 
 export interface LogEntry<T> {
     hash: string;
@@ -75,7 +77,6 @@ export class OrbitDbServiceManager
     extends OrbitDbManager
     implements OnModuleInit, OnModuleDestroy, HealthProvider
 {
-    private replicationHandlerInstance?: ReplicationHandler;
     private connectionStatus: OrbitDBConnectionStatus = {
         connected: false,
         peers: 0,
@@ -89,9 +90,12 @@ export class OrbitDbServiceManager
         private readonly loggerService: Logger,
         configService: ConfigService
     ) {
-        const appConfig = configService.get('app');
+        const appConfig = configService.get<AppConfiguration>(
+            'app'
+        ) as AppConfiguration;
         const config: OrbitDbManagerConfig = {
             logName: appConfig.orbitdb.logName,
+            address: appConfig.orbitdb.address,
             dataDir: appConfig.orbitdb.dataDir,
         };
         super(config);
@@ -111,8 +115,25 @@ export class OrbitDbServiceManager
         // Initialize OrbitDB and open discovery log
         await this.start(Promise.resolve(helia));
 
-        // Set up replication handler
-        this.setReplicationHandler(this.replicationHandler);
+        // if we just created a new database
+        if (!this.config.address && this.discoveryLog?.address) {
+            if (!this.replicationHandler) {
+                throw new Error(
+                    'Replication handler not initialized for replication of new database'
+                );
+            }
+
+            const manifestCid = this.discoveryLog.address.split('/')[2];
+            const manifest = await this.heliaNode.retrieveObject(
+                manifestCid,
+                IpfsCodec.DAG_CBOR
+            );
+
+            await this.replicationHandler.handleNewManifest(
+                manifestCid,
+                manifest
+            );
+        }
 
         // Update connection status
         this.connectionStatus = {
@@ -142,18 +163,13 @@ export class OrbitDbServiceManager
     }
 
     /**
-     * Set replication handler
-     */
-    setReplicationHandler(handler: ReplicationHandler): void {
-        this.replicationHandlerInstance = handler;
-        this.loggerService.debug('Replication handler set');
-    }
-
-    /**
      * Handle replication events from OrbitDB
      */
-    async handleReplication(address: string, hash: string): Promise<void> {
-        if (!this.discoveryLog || !this.replicationHandlerInstance) {
+    async handleReplication(
+        address: string,
+        entry: LogEntry<DiscoveryRecord>
+    ): Promise<void> {
+        if (!this.discoveryLog || !this.replicationHandler) {
             this.loggerService.warn(
                 'Discovery log or replication handler not available for replication event'
             );
@@ -163,35 +179,22 @@ export class OrbitDbServiceManager
         try {
             this.loggerService.debug(`Handling replication event`, {
                 address,
-                hash,
+                entry,
             });
 
-            // Find the entry by hash (OrbitDB v3 API)
-            const entries = (await this.discoveryLog.all()) as unknown[];
-            const entry = entries.find(
-                (e: unknown) => (e as { hash?: string }).hash === hash
-            );
-
-            if (!entry) {
-                this.loggerService.warn(`Entry not found for hash: ${hash}`);
-                return;
-            }
-
             // Delegate to replication handler (cast to proper type)
-            await this.replicationHandlerInstance.handleNewEntry(
-                entry as LogEntry<DiscoveryRecord>
-            );
+            await this.replicationHandler.handleNewEntry(entry);
 
             this.loggerService.debug(
                 `✅ Replication event handled successfully`,
                 {
-                    hash,
+                    entry,
                 }
             );
         } catch (error) {
             this.loggerService.error('Error handling replication', {
                 address,
-                hash,
+                entry,
                 error: error instanceof Error ? error.message : error,
             });
         }
@@ -212,7 +215,7 @@ export class OrbitDbServiceManager
                 throw new Error('Invalid discovery record');
             }
 
-            const hash = await this.discoveryLog.addOperation(record);
+            const hash = await this.discoveryLog.add(record);
 
             this.loggerService.info(`➕ Discovery record added`, {
                 hash,
@@ -285,14 +288,11 @@ export class OrbitDbServiceManager
 
         // OrbitDB v3 uses 'update' events
         const updateListener = (...args: unknown[]) => {
-            const entry = args[0] as { hash: string };
+            const entry = args[0] as LogEntry<DiscoveryRecord>;
             this.loggerService.debug(`📡 Database updated`, {
-                hash: entry.hash,
+                entry,
             });
-            this.handleReplication(
-                this.discoveryLog?.address || '',
-                entry.hash
-            );
+            this.handleReplication(this.discoveryLog?.address || '', entry);
         };
 
         // Register listeners (OrbitDB v3 API)

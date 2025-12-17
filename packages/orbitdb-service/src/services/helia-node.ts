@@ -19,8 +19,23 @@ import { noise } from '@chainsafe/libp2p-noise';
 import { yamux } from '@chainsafe/libp2p-yamux';
 import { Libp2pConnection } from '@my-mimisbrunnr/ipfs';
 import { AppConfiguration } from '../config/configuration.js';
+import { privateKeyFromProtobuf } from '@libp2p/crypto/keys';
+import { webSockets } from '@libp2p/websockets';
+import { dagJson, type DAGJSON } from '@helia/dag-json';
+import { dagCbor, type DAGCBOR } from '@helia/dag-cbor';
+import { CID } from 'multiformats/cid';
 
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+export enum IpfsCodec {
+    DAG_JSON = 'dag-json',
+    DAG_CBOR = 'dag-cbor',
+}
+
+type CodecTypeMap = {
+    [IpfsCodec.DAG_JSON]: DAGJSON;
+    [IpfsCodec.DAG_CBOR]: DAGCBOR;
+};
 
 export interface HeliaConnectionStatus {
     connected: boolean;
@@ -35,6 +50,8 @@ export class HeliaNode
     implements OnModuleInit, OnModuleDestroy, HealthProvider
 {
     private helia: Helia<Libp2p<Record<string, unknown>>> | null = null;
+    private ipfsCodecs: Partial<Record<IpfsCodec, CodecTypeMap[IpfsCodec]>> =
+        {};
     private libp2pConnection: Libp2pConnection | null = null;
     private connectionStatus: HeliaConnectionStatus = {
         connected: false,
@@ -67,6 +84,35 @@ export class HeliaNode
         await this.shutdown();
     }
 
+    private registerCodecs(codecs: IpfsCodec[]): void {
+        if (!this.helia) {
+            throw new Error('Helia node not initialized');
+        }
+
+        for (const codec of codecs) {
+            switch (codec) {
+                case IpfsCodec.DAG_JSON:
+                    this.ipfsCodecs[IpfsCodec.DAG_JSON] = dagJson({
+                        blockstore: this.helia.blockstore,
+                    });
+                    break;
+                case IpfsCodec.DAG_CBOR:
+                    this.ipfsCodecs[IpfsCodec.DAG_CBOR] = dagCbor({
+                        blockstore: this.helia.blockstore,
+                    });
+                    break;
+            }
+        }
+    }
+
+    private getCodec(codec: IpfsCodec): CodecTypeMap[IpfsCodec] {
+        if (!this.ipfsCodecs[codec]) {
+            throw new Error(`Codec ${codec} not registered`);
+        }
+
+        return this.ipfsCodecs[codec];
+    }
+
     /**
      * Initialize Helia node with connection to Kubo
      */
@@ -74,9 +120,14 @@ export class HeliaNode
         const appConfig = this.configService.get<AppConfiguration>(
             'app'
         ) as AppConfiguration;
-        const kuboMultiaddr = appConfig.ipfs.gatewayMultiaddr;
+
         const maxCooldown = 10 * 1000;
         let cooldown = 0;
+        const port = appConfig.service.port;
+        const kuboMultiaddr = appConfig.ipfs.gatewayMultiaddr;
+        const keyString = appConfig.orbitdb.libp2pPrivateKey;
+        const protobufBytes = Buffer.from(keyString, 'base64');
+        const privateKey = privateKeyFromProtobuf(protobufBytes);
 
         while (!this.connectionStatus.connected) {
             try {
@@ -87,10 +138,14 @@ export class HeliaNode
                 const heliaConfig: HeliaInit<Libp2p<Record<string, unknown>>> =
                     {
                         libp2p: {
+                            privateKey,
                             addresses: {
-                                listen: ['/ip4/0.0.0.0/tcp/0'],
+                                listen: [
+                                    `/ip4/0.0.0.0/tcp/${port + 1}`,
+                                    `/ip4/0.0.0.0/tcp/${port + 2}/ws`,
+                                ],
                             },
-                            transports: [tcp()],
+                            transports: [tcp(), webSockets()],
                             peerDiscovery: appConfig.ipfs.bootstrapNodes?.length
                                 ? [
                                       bootstrap({
@@ -117,16 +172,14 @@ export class HeliaNode
                 // Create Helia instance
                 this.helia = await createHelia(heliaConfig);
 
+                this.registerCodecs(Object.values(IpfsCodec));
+
                 this.libp2pConnection = kuboMultiaddr
                     ? new Libp2pConnection(this.helia.libp2p, kuboMultiaddr)
                     : null;
 
-                // Update connection status
-                await this.updateConnectionStatus();
-
-                if (!this.connectionStatus.connected) {
-                    throw new Error('Failed to establish Helia node');
-                }
+                // Wait for connection to be established
+                await this.awaitConnection();
 
                 this.logger.info('✅ Helia node created successfully', {
                     peerId: this.helia.libp2p.peerId.toString(),
@@ -146,7 +199,8 @@ export class HeliaNode
     }
 
     async awaitConnection(): Promise<void> {
-        while (!(await this.updateConnectionStatus())) {
+        while (!this.connectionStatus.connected) {
+            await this.updateConnectionStatus();
             await wait(5000);
             this.logger.info('🔄 Waiting for Helia connection...');
         }
@@ -155,18 +209,19 @@ export class HeliaNode
     /**
      * Check Helia node status
      */
-    private async updateConnectionStatus(): Promise<boolean> {
+    private async updateConnectionStatus(): Promise<void> {
         const baseConnectionStatus = {
             connected: false,
             lastCheck: Date.now(),
             peers: 0,
         };
+
         if (!this.helia) {
             this.connectionStatus = {
                 ...baseConnectionStatus,
                 error: 'Helia not initialized',
             };
-            return false;
+            return;
         }
 
         try {
@@ -180,7 +235,7 @@ export class HeliaNode
                     peers: peers.length,
                     peerId,
                 };
-                return false;
+                return;
             }
 
             const libp2pConnectionStatus =
@@ -197,8 +252,6 @@ export class HeliaNode
                 peerId,
                 peerCount: peers.length,
             });
-
-            return true;
         } catch (error) {
             this.connectionStatus = {
                 ...baseConnectionStatus,
@@ -208,8 +261,6 @@ export class HeliaNode
             this.logger.debug('❌ Helia connection check failed', {
                 error: error instanceof Error ? error.message : error,
             });
-
-            return false;
         }
     }
 
@@ -225,6 +276,14 @@ export class HeliaNode
      */
     getConnectionStatus(): HeliaConnectionStatus {
         return this.connectionStatus;
+    }
+
+    get blockstore() {
+        if (!this.helia) {
+            throw new Error('Helia node not initialized');
+        }
+
+        return this.helia?.blockstore;
     }
 
     /**
@@ -304,6 +363,37 @@ export class HeliaNode
                     error: error instanceof Error ? error.message : error,
                 },
             };
+        }
+    }
+
+    /**
+     * Retrieve an object from IPFS by CID
+     *
+     * @param cidString - CID string of the content to retrieve
+     * @returns The retrieved object
+     *
+     */
+    async retrieveObject(
+        cidString: string,
+        codecName = IpfsCodec.DAG_JSON
+    ): Promise<unknown> {
+        const codec = this.getCodec(codecName);
+
+        try {
+            this.logger.info('Retrieving object:', cidString);
+
+            // Parse CID string
+            const cid = CID.parse(cidString);
+
+            // Retrieve JSON from IPFS using dag-json codec
+            const object = await codec.get(cid);
+
+            this.logger.info('Object retrieved successfully:', object);
+
+            return object;
+        } catch (error) {
+            this.logger.error('Failed to retrieve object:', error);
+            throw error;
         }
     }
 }

@@ -473,14 +473,3 @@ export function sha256Hash(input: string): string {
     const hash = sha256(bytes);
     return bytesToHex(hash);
 }
-
-/**
- * Generate lookup key from handle
- * Used for OrbitDB discovery records
- *
- * @param handle - X.com handle (e.g., @alice)
- * @returns SHA-256 hash of lowercase handle
- */
-export function generateLookupKey(handle: string): string {
-    return sha256Hash(handle.toLowerCase());
-}

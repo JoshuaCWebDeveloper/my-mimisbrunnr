@@ -2,6 +2,8 @@ import { styled } from 'styled-components';
 import { TagManager } from './components/tag-manager.js';
 import { IpfsPublisher } from './components/publish/ipfs-publisher.js';
 import { IdentityManager } from './components/identity/identity-manager.js';
+import { HandleLookup } from './components/discovery/handle-lookup.js';
+import { DiscoveryStatus } from './components/discovery/discovery-status.js';
 import themes from './themes.js';
 
 const Theme = themes.default;
@@ -180,6 +182,8 @@ export const App = () => {
                 <IdentityManager />
                 <TagManager />
                 <IpfsPublisher />
+                <HandleLookup />
+                <DiscoveryStatus className="discovery-status" />
             </StyledMain>
         </StyledApp>
     );

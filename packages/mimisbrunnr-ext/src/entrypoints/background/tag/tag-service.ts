@@ -12,6 +12,7 @@ import {
 import log from 'loglevel';
 import type { IdentityService } from '../identity/identity-service.js';
 import type { AddObjectOptions, IpfsService } from '../ipfs/ipfs-service.js';
+import type { DiscoveryService } from '../discovery/discovery-service.js';
 import { TagRepository } from './tag-repository.js';
 
 export interface PublishOptions extends AddObjectOptions {
@@ -27,7 +28,8 @@ export class TagService {
 
     constructor(
         private ipfsService: IpfsService,
-        private identityService: IdentityService
+        private identityService: IdentityService,
+        private discoveryService: DiscoveryService
     ) {}
 
     async get(id: string): Promise<Tag | null> {
@@ -274,7 +276,26 @@ export class TagService {
             ipnsKey,
         });
 
-        // TODO(MM-30): Add OrbitDB discovery record
+        // Step 4: Publish discovery record to OrbitDB (MM-30)
+        log.info(
+            '[TagService] Step 4/4: Publishing discovery record to OrbitDB'
+        );
+        try {
+            await this.discoveryService.publishDiscovery(
+                identity.handle,
+                ipnsKey,
+                identity.did
+            );
+            log.info('[TagService] Discovery record published successfully');
+        } catch (error) {
+            // Log error but don't fail the entire publish operation
+            // Discovery is optional - the manifest is already published
+            log.error(
+                '[TagService] Failed to publish discovery record (non-fatal):',
+                error
+            );
+            // TODO(MM-36): Add telemetry for discovery publish failures
+        }
 
         return manifestCid;
     }

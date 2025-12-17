@@ -1,75 +1,59 @@
 import log from 'loglevel';
-import { MessageType, Messenger } from '../../messenger.js';
-import { initDevtools } from './devtools.js';
-import { IpfsService } from './ipfs/ipfs-service.js';
-import { TagService } from './tag/tag-service.js';
-import { IdentityService } from './identity/identity-service.js';
+import { MessageType } from '../../messenger.js';
+import { App } from './app.js';
 
 log.setLevel('debug');
 
 export default defineBackground(() => {
     log.info('X.com Account Tagger background script loaded');
 
-    const messenger = new Messenger();
+    const app = new App();
 
-    // Initialize IPFS service (MM-27)
-    const ipfsService = new IpfsService();
-
-    const identityService = new IdentityService(ipfsService);
-
-    const tagService = new TagService(ipfsService, identityService);
-
-    initDevtools(ipfsService);
-
-    // Connection #1: libp2p WebSocket multiaddr for Bitswap block exchange
-    // Connects to Kubo through validation-proxy's WebSocket stream proxy (port 4002/ws)
-    // validation-proxy transparently proxies UDP traffic to Kubo's WebSocket endpoint
-    // Get Kubo's peer ID: docker exec kubo ipfs id -f "<id>"
-    // Get Kubo's WebSocket multiaddr: docker exec kubo ipfs swarm addrs local | grep ws | grep 127.0.0.1
-    // Format: /ip4/127.0.0.1/tcp/4002/ws/p2p/{kubo-peerId}
-    const PERPETUAL_NODE_MULTIADDR =
-        '/ip4/127.0.0.1/tcp/4002/ws/p2p/12D3KooWFUFJMaov3MJ7ibq46vYdZq4HLbhXvujtmmR4r3ijVNts';
-    // Connection #2: HTTP API URL for kubo-rpc-client (pinning operations)
-    // Connects to Kubo's HTTP RPC API through validation-proxy HTTP security facade (port 5001)
-    const KUBO_API_URL = 'http://localhost:5001';
-
-    ipfsService
-        .initialize(PERPETUAL_NODE_MULTIADDR, KUBO_API_URL)
+    app.start()
+        .then(() => {
+            log.info('App started');
+        })
         .catch(error => {
-            log.error('Failed to initialize IPFS service:', error);
+            log.error('Failed to start app:', error);
         });
 
     // Handle messages from popup and content script
-    messenger.onRuntimeMessage((message, sender, sendResponse) => {
+    app.messenger.onRuntimeMessage((message, sender, sendResponse) => {
         (async () => {
             try {
                 switch (message.type) {
                     case MessageType.LIST_TAGS: {
-                        const tags = await tagService.list();
+                        const tags = await app.tagService.list();
                         sendResponse<MessageType.LIST_TAGS>(tags);
                         break;
                     }
                     case MessageType.LIST_TAGS_BY_USERNAME: {
-                        const tags = await tagService.listByUsername(
+                        const tags = await app.tagService.listByUsername(
                             message.body.username
                         );
                         sendResponse<MessageType.LIST_TAGS_BY_USERNAME>(tags);
                         break;
                     }
                     case MessageType.SAVE_TAG: {
-                        const newTag = await tagService.upsert(message.body);
+                        const newTag = await app.tagService.upsert(
+                            message.body
+                        );
 
                         // Notify content script to refresh tags
-                        messenger.sendMessageToTabs(MessageType.REFRESH_TAGS);
+                        app.messenger.sendMessageToTabs(
+                            MessageType.REFRESH_TAGS
+                        );
 
                         sendResponse<MessageType.SAVE_TAG>(newTag);
                         break;
                     }
                     case MessageType.DELETE_TAG: {
-                        await tagService.delete(message.body.id);
+                        await app.tagService.delete(message.body.id);
 
                         // Notify content script to refresh tags
-                        messenger.sendMessageToTabs(MessageType.REFRESH_TAGS);
+                        app.messenger.sendMessageToTabs(
+                            MessageType.REFRESH_TAGS
+                        );
 
                         sendResponse<MessageType.DELETE_TAG>({
                             id: message.body.id,
@@ -77,7 +61,7 @@ export default defineBackground(() => {
                         break;
                     }
                     case MessageType.GET_TAG: {
-                        const tag = await tagService.get(message.body.id);
+                        const tag = await app.tagService.get(message.body.id);
 
                         sendResponse<MessageType.GET_TAG>(
                             tag ?? {
@@ -88,7 +72,7 @@ export default defineBackground(() => {
                     }
                     case MessageType.PUBLISH_TO_IPFS: {
                         // Publish to IPFS and pin to Kubo via RPC API (Connection #2)
-                        const cid = await tagService.publishUserManifest();
+                        const cid = await app.tagService.publishUserManifest();
 
                         sendResponse<MessageType.PUBLISH_TO_IPFS>({ cid });
                         break;
@@ -96,7 +80,7 @@ export default defineBackground(() => {
                     case MessageType.RETRIEVE_FROM_IPFS: {
                         // Retrieve from IPFS
                         const tagCollection =
-                            await tagService.retrieveTagCollection(
+                            await app.tagService.retrieveTagCollection(
                                 message.body.cid
                             );
 
@@ -111,13 +95,15 @@ export default defineBackground(() => {
                     }
                     case MessageType.IMPORT_FROM_IPFS: {
                         // Import tags into repository with specified mode
-                        const result = await tagService.importUserManifest(
+                        const result = await app.tagService.importUserManifest(
                             message.body.cid,
                             { mode: message.body.mode }
                         );
 
                         // Notify content script to refresh tags
-                        messenger.sendMessageToTabs(MessageType.REFRESH_TAGS);
+                        app.messenger.sendMessageToTabs(
+                            MessageType.REFRESH_TAGS
+                        );
 
                         sendResponse<MessageType.IMPORT_FROM_IPFS>({
                             imported: result.totalImported,
@@ -126,7 +112,8 @@ export default defineBackground(() => {
                         break;
                     }
                     case MessageType.UPDATE_PUBLISHED_MANIFEST: {
-                        const cid = await tagService.updatePublishedManifest();
+                        const cid =
+                            await app.tagService.updatePublishedManifest();
 
                         sendResponse<MessageType.UPDATE_PUBLISHED_MANIFEST>({
                             cid,
@@ -135,10 +122,11 @@ export default defineBackground(() => {
                     }
                     // Identity operations (MM-28)
                     case MessageType.CREATE_IDENTITY: {
-                        const identity = await identityService.createIdentity(
-                            message.body.passphrase,
-                            message.body.handle
-                        );
+                        const identity =
+                            await app.identityService.createIdentity(
+                                message.body.passphrase,
+                                message.body.handle
+                            );
 
                         sendResponse<MessageType.CREATE_IDENTITY>({
                             did: identity.did,
@@ -147,9 +135,10 @@ export default defineBackground(() => {
                         break;
                     }
                     case MessageType.UNLOCK_IDENTITY: {
-                        const identity = await identityService.unlockIdentity(
-                            message.body.passphrase
-                        );
+                        const identity =
+                            await app.identityService.unlockIdentity(
+                                message.body.passphrase
+                            );
 
                         sendResponse<MessageType.UNLOCK_IDENTITY>({
                             did: identity.did,
@@ -158,19 +147,22 @@ export default defineBackground(() => {
                         break;
                     }
                     case MessageType.LOCK_IDENTITY: {
-                        identityService.lock();
+                        app.identityService.lock();
 
                         sendResponse<MessageType.LOCK_IDENTITY>(undefined);
                         break;
                     }
                     case MessageType.DELETE_IDENTITY: {
-                        await identityService.delete(message.body.passphrase);
+                        await app.identityService.delete(
+                            message.body.passphrase
+                        );
 
                         sendResponse<MessageType.DELETE_IDENTITY>(undefined);
                         break;
                     }
                     case MessageType.HAS_IDENTITY: {
-                        const hasIdentity = await identityService.hasIdentity();
+                        const hasIdentity =
+                            await app.identityService.hasIdentity();
 
                         sendResponse<MessageType.HAS_IDENTITY>({
                             hasIdentity,
@@ -178,7 +170,7 @@ export default defineBackground(() => {
                         break;
                     }
                     case MessageType.IS_IDENTITY_UNLOCKED: {
-                        const isUnlocked = identityService.isUnlocked();
+                        const isUnlocked = app.identityService.isUnlocked();
 
                         sendResponse<MessageType.IS_IDENTITY_UNLOCKED>({
                             isUnlocked,
@@ -186,8 +178,8 @@ export default defineBackground(() => {
                         break;
                     }
                     case MessageType.GET_IDENTITY_INFO: {
-                        if (identityService.isUnlocked()) {
-                            const identity = identityService.getCurrent();
+                        if (app.identityService.isUnlocked()) {
+                            const identity = app.identityService.getCurrent();
 
                             sendResponse<MessageType.GET_IDENTITY_INFO>({
                                 did: identity.did,
@@ -195,7 +187,7 @@ export default defineBackground(() => {
                             });
                         } else {
                             const encryptedIdentity =
-                                await identityService.getEncryptedIdentity();
+                                await app.identityService.getEncryptedIdentity();
 
                             if (encryptedIdentity) {
                                 sendResponse<MessageType.GET_IDENTITY_INFO>({
@@ -208,6 +200,54 @@ export default defineBackground(() => {
                                 );
                             }
                         }
+                        break;
+                    }
+                    // Discovery operations (MM-30)
+                    case MessageType.PUBLISH_DISCOVERY: {
+                        // Get current identity info
+                        if (!app.identityService.isUnlocked()) {
+                            throw new Error(
+                                'Identity must be unlocked to publish discovery'
+                            );
+                        }
+
+                        // Get IPNS key from last publish
+                        // TODO(MM-29): Store IPNS key in identity service
+                        // For now, we'll need to get it from the manifest publish flow
+                        // This is a limitation that will be addressed when we integrate
+                        // discovery publishing into the manifest publish workflow
+
+                        throw new Error(
+                            'Discovery publishing not yet integrated with manifest publish. Use PUBLISH_TO_IPFS which will auto-publish discovery.'
+                        );
+                    }
+                    case MessageType.DISCOVER_BY_HANDLE: {
+                        const record =
+                            await app.discoveryService.discoverByHandle(
+                                message.body.handle
+                            );
+
+                        if (record) {
+                            sendResponse<MessageType.DISCOVER_BY_HANDLE>({
+                                handle: record.handle,
+                                ipnsKey: record.ipnsKey,
+                                did: record.did,
+                                updatedAt: record.updatedAt,
+                            });
+                        } else {
+                            sendResponse<MessageType.DISCOVER_BY_HANDLE>(null);
+                        }
+                        break;
+                    }
+                    case MessageType.GET_DISCOVERY_STATUS: {
+                        const isInitialized =
+                            app.orbitdbService.isInitialized();
+                        const orbitdbId = app.orbitdbService.getId();
+
+                        sendResponse<MessageType.GET_DISCOVERY_STATUS>({
+                            isInitialized,
+                            orbitdbId,
+                        });
                         break;
                     }
                 }

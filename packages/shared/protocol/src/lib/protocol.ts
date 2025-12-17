@@ -160,6 +160,18 @@ export const DidDocumentSchema = z.object({
 export type DidDocument = z.infer<typeof DidDocumentSchema>;
 
 /**
+ * OrbitDb Manifest
+ */
+
+export const OrbitDbManifestSchema = z.object({
+    name: z.string(),
+    type: z.enum(['events, logs, documents']),
+    accessController: z.unknown(),
+});
+
+export type OrbitDbManifest = z.infer<typeof OrbitDbManifestSchema>;
+
+/**
  * OrbitDB Discovery Record interface for cross-package communication
  * Used by both mimisbrunnr-ext and perpetual-node for interoperability
  */

@@ -2,7 +2,7 @@ import type { Helia } from 'helia';
 import {
     createOrbitDB,
     DatabaseEvents,
-    type BaseDatabase,
+    type EventsDatabase,
     type OrbitDB,
 } from './core.js';
 
@@ -10,8 +10,10 @@ import {
  * Configuration options for OrbitDbManager
  */
 export interface OrbitDbManagerConfig {
-    /** Name of the discovery log database */
+    /** Name of a new discovery log database */
     logName: string;
+    /** Address of the existing discovery log database */
+    address?: string;
     /** Directory for OrbitDB data storage (optional) */
     dataDir?: string;
 }
@@ -35,7 +37,7 @@ export interface OrbitDbManagerConfig {
  */
 export abstract class OrbitDbManager {
     protected orbitdb: OrbitDB | null = null;
-    protected discoveryLog: BaseDatabase | null = null;
+    protected discoveryLog: EventsDatabase | null = null;
     protected config: OrbitDbManagerConfig;
     protected eventListeners: Map<
         keyof DatabaseEvents,
@@ -108,11 +110,20 @@ export abstract class OrbitDbManager {
         }
 
         try {
-            this.log('info', `Opening discovery log: ${this.config.logName}`);
+            this.log(
+                'info',
+                `Opening discovery log: ${this.config.logName} (address: ${this.config.address})`
+            );
 
             // Open the discovery log with public write access
             // OrbitDB v3 uses the 'events' type for append-only logs
-            this.discoveryLog = await this.orbitdb.open(this.config.logName);
+            this.discoveryLog = this.config.address
+                ? ((await this.orbitdb.open(
+                      this.config.address
+                  )) as EventsDatabase)
+                : ((await this.orbitdb.open(
+                      this.config.logName
+                  )) as EventsDatabase);
 
             // Set up event listeners (implemented by subclasses)
             await this.setupEventListeners();
@@ -125,7 +136,15 @@ export abstract class OrbitDbManager {
                 entries: entries.length,
             });
         } catch (error) {
-            this.log('error', 'Failed to open discovery log', { error });
+            this.log('error', 'Failed to open discovery log', {
+                error: `${error}`,
+            });
+            if (error instanceof AggregateError) {
+                this.log('error', 'AggregateError', {
+                    length: error.errors.length,
+                    errors: error.errors.map(err => `${err}`),
+                });
+            }
             throw error;
         }
     }
@@ -190,7 +209,7 @@ export abstract class OrbitDbManager {
     /**
      * Get the discovery log database instance
      */
-    getDatabase(): BaseDatabase | null {
+    getDatabase() {
         return this.discoveryLog;
     }
 

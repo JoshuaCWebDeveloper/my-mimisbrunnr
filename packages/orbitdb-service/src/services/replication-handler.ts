@@ -11,9 +11,11 @@ import {
 } from '../health/health.service.js';
 import { IpfsClient } from './ipfs-client.js';
 import type { LogEntry } from './orbitdb-service-manager.js';
+import { HeliaNode } from './helia-node.js';
+import { CID } from 'multiformats/cid';
 
-interface PinnedEntry {
-    hash: string;
+interface PinnedContent {
+    content: unknown;
     cid: string;
     timestamp: number;
     size?: number;
@@ -22,13 +24,14 @@ interface PinnedEntry {
 
 @Injectable()
 export class ReplicationHandler implements OnModuleDestroy, HealthProvider {
-    private pinnedEntries: Map<string, PinnedEntry> = new Map();
+    private pinnedContent: Map<string, PinnedContent> = new Map();
     private cleanupInterval?: NodeJS.Timeout;
     private totalEntriesProcessed = 0;
     private totalEntriesPinned = 0;
     private totalEntriesRejected = 0;
 
     constructor(
+        private readonly heliaNode: HeliaNode,
         private readonly ipfsClient: IpfsClient,
         private readonly healthService: HealthService,
         private readonly logger: Logger,
@@ -43,6 +46,25 @@ export class ReplicationHandler implements OnModuleDestroy, HealthProvider {
     async onModuleDestroy() {
         this.healthService.unregisterService('replication');
         await this.shutdown();
+    }
+
+    async handleNewManifest(cid: string, manifest: unknown): Promise<void> {
+        try {
+            this.logger.debug(`🔄 Processing new manifest`, {
+                manifest,
+            });
+
+            await this.pinContent(cid);
+
+            this.logger.info(`✅ Manifest pinned: ${cid}`, {
+                manifest,
+            });
+        } catch (error) {
+            this.logger.error(`❌ Error pinning manifest: ${cid}`, {
+                error: error instanceof Error ? error.message : error,
+            });
+            throw error;
+        }
     }
 
     /**
@@ -68,25 +90,17 @@ export class ReplicationHandler implements OnModuleDestroy, HealthProvider {
                 });
 
                 // Still track the entry but mark as invalid
-                this.pinnedEntries.set(entry.hash, {
-                    hash: entry.hash,
-                    cid: entry.hash, // Using hash as CID for invalid entries
+                this.pinnedContent.set(entry.hash, {
+                    content: entry,
+                    cid: entry.hash,
                     timestamp: Date.now(),
                     valid: false,
-                });
+                } as PinnedContent);
                 return;
             }
 
             // Pin the entry content to IPFS
-            await this.pinEntryContent(entry.hash);
-
-            // Track the entry
-            this.pinnedEntries.set(entry.hash, {
-                hash: entry.hash,
-                cid: entry.hash,
-                timestamp: Date.now(),
-                valid: true,
-            });
+            await this.pinContent(entry.hash);
 
             this.totalEntriesPinned++;
 
@@ -107,35 +121,69 @@ export class ReplicationHandler implements OnModuleDestroy, HealthProvider {
     }
 
     /**
-     * Pin entry content to IPFS with size limits
+     * Pin content to IPFS with size limits
      */
-    async pinEntryContent(entryCid: string): Promise<void> {
+    private async pinContent(cidString: string): Promise<void> {
+        if (!this.ipfsClient || !this.heliaNode) {
+            throw new Error('IPFS client or Helia node not initialized');
+        }
+
+        // Check if we've already pinned this entry
+        if (this.pinnedContent.has(cidString)) {
+            this.logger.debug(`📌 Content already pinned: ${cidString}`);
+            return;
+        }
+
         try {
-            // Check if we've already pinned this entry
-            if (this.pinnedEntries.has(entryCid)) {
-                this.logger.debug(`📌 Entry already pinned: ${entryCid}`);
-                return;
+            this.logger.info(
+                'Pinning content to perpetual node via dag/put:',
+                cidString
+            );
+
+            const cid = CID.parse(cidString);
+
+            // Get the raw block data from Helia's blockstore
+            const blockData = await this.heliaNode.blockstore.get(cid);
+
+            this.logger.info(
+                'Retrieved block from local blockstore:',
+                `CID: ${cidString}, Size: ${blockData.length} bytes`
+            );
+
+            // Upload block to Kubo using dag/put with pin=true
+            // The dag/put endpoint will validate content via validation-proxy
+            const remoteCid = await this.ipfsClient.putDagContent(blockData, {
+                storeCodec: 'dag-cbor',
+                inputCodec: 'dag-cbor',
+                pin: true,
+            });
+
+            this.logger.info(
+                'Content uploaded via dag/put:',
+                `Local CID: ${cidString}, Remote CID: ${remoteCid.cid}`
+            );
+
+            // Verify CID matches
+            if (remoteCid.cid !== cidString) {
+                throw new Error(
+                    `CID mismatch: local=${cidString}, remote=${remoteCid.cid}`
+                );
             }
 
-            // Pin the content using the IPFS client
-            const pinResult = await this.ipfsClient.pinContent({
-                cid: entryCid,
-                recursive: false, // Single-block pinning for security
-                clientIP: 'orbitdb-replication', // Internal replication
+            this.logger.info(
+                'Content pinned successfully with verified CID:',
+                cidString
+            );
+
+            // Track the entry
+            this.pinnedContent.set(cidString, {
+                content: blockData,
+                cid: remoteCid.cid,
                 timestamp: Date.now(),
-            });
-
-            if (!pinResult.success) {
-                throw new Error(pinResult.error || 'Pin operation failed');
-            }
-
-            this.logger.debug(`📌 Entry content pinned: ${entryCid}`, {
-                size: pinResult.size,
-            });
+                valid: true,
+            } as PinnedContent);
         } catch (error) {
-            this.logger.error(`❌ Failed to pin entry content: ${entryCid}`, {
-                error: error instanceof Error ? error.message : error,
-            });
+            this.logger.error('Failed to pin content:', error);
             throw error;
         }
     }
@@ -217,10 +265,10 @@ export class ReplicationHandler implements OnModuleDestroy, HealthProvider {
         validEntries: number;
         invalidEntries: number;
     } {
-        const validEntries = Array.from(this.pinnedEntries.values()).filter(
+        const validEntries = Array.from(this.pinnedContent.values()).filter(
             e => e.valid
         ).length;
-        const invalidEntries = Array.from(this.pinnedEntries.values()).filter(
+        const invalidEntries = Array.from(this.pinnedContent.values()).filter(
             e => !e.valid
         ).length;
 
@@ -228,7 +276,7 @@ export class ReplicationHandler implements OnModuleDestroy, HealthProvider {
             totalProcessed: this.totalEntriesProcessed,
             totalPinned: this.totalEntriesPinned,
             totalRejected: this.totalEntriesRejected,
-            pinnedEntries: this.pinnedEntries.size,
+            pinnedEntries: this.pinnedContent.size,
             validEntries,
             invalidEntries,
         };
@@ -237,8 +285,8 @@ export class ReplicationHandler implements OnModuleDestroy, HealthProvider {
     /**
      * Get list of pinned entries
      */
-    getPinnedEntries(): PinnedEntry[] {
-        return Array.from(this.pinnedEntries.values());
+    getPinnedEntries(): PinnedContent[] {
+        return Array.from(this.pinnedContent.values());
     }
 
     /**
@@ -264,20 +312,20 @@ export class ReplicationHandler implements OnModuleDestroy, HealthProvider {
 
             // Only clean up if we exceed the maximum pinned entries limit
             if (
-                this.pinnedEntries.size <=
+                this.pinnedContent.size <=
                 appConfig.operational.maxLogEntriesPinned
             ) {
                 return;
             }
 
             // Find old entries to clean up
-            const oldEntries = Array.from(this.pinnedEntries.entries())
+            const oldEntries = Array.from(this.pinnedContent.entries())
                 .filter(([_hash, entry]) => entry.timestamp < cutoff)
                 .sort(([, a], [, b]) => a.timestamp - b.timestamp); // Oldest first
 
             // Calculate how many to remove
             const excessEntries =
-                this.pinnedEntries.size -
+                this.pinnedContent.size -
                 appConfig.operational.maxLogEntriesPinned;
             const toRemove = Math.min(oldEntries.length, excessEntries);
 
@@ -286,7 +334,7 @@ export class ReplicationHandler implements OnModuleDestroy, HealthProvider {
             }
 
             this.logger.info(`🧹 Starting cleanup of old entries`, {
-                totalPinned: this.pinnedEntries.size,
+                totalPinned: this.pinnedContent.size,
                 maxAllowed: appConfig.operational.maxLogEntriesPinned,
                 toRemove,
             });
@@ -302,7 +350,7 @@ export class ReplicationHandler implements OnModuleDestroy, HealthProvider {
                     }
 
                     // Remove from tracking
-                    this.pinnedEntries.delete(hash);
+                    this.pinnedContent.delete(hash);
                     cleaned++;
                 } catch (error) {
                     this.logger.warn(`Failed to cleanup entry: ${hash}`, {
@@ -313,7 +361,7 @@ export class ReplicationHandler implements OnModuleDestroy, HealthProvider {
 
             if (cleaned > 0) {
                 this.logger.info(`🧹 Cleaned up ${cleaned} old entries`, {
-                    remaining: this.pinnedEntries.size,
+                    remaining: this.pinnedContent.size,
                 });
             }
         } catch (error) {

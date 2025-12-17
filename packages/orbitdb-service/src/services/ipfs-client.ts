@@ -253,12 +253,7 @@ export class IpfsClient
         const startTime = Date.now();
 
         try {
-            if (!this.connectionStatus.connected) {
-                await this.updateConnectionStatus();
-                if (!this.connectionStatus.connected) {
-                    throw new Error('IPFS client not connected');
-                }
-            }
+            await this.awaitConnection();
 
             this.logger.debug(`📌 Pinning content: ${request.cid}`, {
                 cid: request.cid,
@@ -308,12 +303,7 @@ export class IpfsClient
      */
     async unpinContent(cid: string): Promise<boolean> {
         try {
-            if (!this.connectionStatus.connected) {
-                await this.updateConnectionStatus();
-                if (!this.connectionStatus.connected) {
-                    throw new Error('IPFS client not connected');
-                }
-            }
+            await this.awaitConnection();
 
             this.logger.debug(`📌 Unpinning content: ${cid}`);
 
@@ -342,12 +332,7 @@ export class IpfsClient
      */
     async getDagContent(cid: string): Promise<unknown> {
         try {
-            if (!this.connectionStatus.connected) {
-                await this.updateConnectionStatus();
-                if (!this.connectionStatus.connected) {
-                    throw new Error('IPFS client not connected');
-                }
-            }
+            await this.awaitConnection();
 
             this.logger.debug(`📥 Getting DAG content: ${cid}`);
 
@@ -364,6 +349,37 @@ export class IpfsClient
             this.logger.error(`❌ Failed to get DAG content: ${cid}`, {
                 error: error instanceof Error ? error.message : error,
                 cid,
+            });
+            throw error;
+        }
+    }
+
+    /**
+     * Get DAG content from IPFS
+     */
+    async putDagContent(
+        data: unknown,
+        options?: Record<string, unknown>
+    ): Promise<{ cid: string }> {
+        try {
+            await this.awaitConnection();
+
+            this.logger.debug(`📥 Putting DAG content: ${data}`);
+
+            if (!this.client) {
+                throw new Error('IPFS client not initialized');
+            }
+
+            const result = await this.client.dag.put(data, options);
+
+            this.logger.debug(`✅ DAG content put: ${data}`, { data });
+
+            return { cid: result.toString() };
+        } catch (error) {
+            this.logger.error(`❌ Failed to put DAG content: ${data}`, {
+                error: error instanceof Error ? error.message : error,
+                data,
+                options,
             });
             throw error;
         }
@@ -412,12 +428,7 @@ export class IpfsClient
      */
     async getRepositoryStats(): Promise<IpfsRepositoryStats> {
         try {
-            if (!this.connectionStatus.connected) {
-                await this.updateConnectionStatus();
-                if (!this.connectionStatus.connected) {
-                    throw new Error('IPFS client not connected');
-                }
-            }
+            await this.awaitConnection();
 
             if (!this.client) {
                 throw new Error('IPFS client not initialized');

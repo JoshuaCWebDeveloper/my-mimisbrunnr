@@ -25,8 +25,15 @@ export class OrbitDbConfig {
     @IsString()
     logName!: string;
 
+    @IsOptional()
+    @IsString()
+    address?: string;
+
     @IsString()
     dataDir!: string;
+
+    @IsString()
+    libp2pPrivateKey!: string;
 }
 
 export class ServiceConfig {
@@ -135,7 +142,9 @@ export default registerAs('app', () => {
         },
         orbitdb: {
             logName: process.env.ORBITDB_LOG_NAME ?? 'xcom-taglist-discovery',
+            address: process.env.ORBITDB_ADDRESS ?? '',
             dataDir: process.env.ORBITDB_DATA_DIR ?? '/app/data/orbitdb',
+            libp2pPrivateKey: process.env.ORBITDB_LIBP2P_PRIVATE_KEY ?? '',
         },
         service: {
             port: process.env.SERVICE_PORT ?? '3000',

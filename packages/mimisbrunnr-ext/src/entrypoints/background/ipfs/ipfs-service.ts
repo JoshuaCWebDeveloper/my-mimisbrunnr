@@ -181,6 +181,24 @@ export class IpfsService {
     }
 
     /**
+     * Get the Helia instance for OrbitDB (MM-30)
+     *
+     * @returns Helia instance or null if not initialized
+     *
+     * @remarks
+     * This method exposes the Helia instance to OrbitDB service so it can
+     * use the existing libp2p connection established in MM-27.
+     *
+     * OrbitDB requires access to:
+     * - Helia's blockstore for storing OrbitDB blocks
+     * - Helia's libp2p for pubsub replication
+     * - Existing WebTransport connection to Kubo
+     */
+    getHelia(): Helia | null {
+        return this.helia;
+    }
+
+    /**
      * Pin content to the perpetual node via kubo-rpc-client HTTP API using dag/put
      * This is Connection #2: HTTP API for pinning operations
      *
