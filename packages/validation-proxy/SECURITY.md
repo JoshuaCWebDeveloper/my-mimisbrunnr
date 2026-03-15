@@ -41,42 +41,85 @@ Client → OpenResty Proxy → Validation Sidecar → Kubo IPFS
 -   `/api/v0/files/*` - Files API
 -   All other modification endpoints
 
-### 2. Lua Security Facades (`config/lua/`)
+### 2. Lua Security Facades (`src/lua/`)
+
+All facades follow a lightweight proxy pattern:
+1. Check rate limits/quotas (nginx shared memory)
+2. Forward to validation-service for validation
+3. Forward validated requests to Kubo
+4. Return validation-service errors or Kubo responses
 
 #### Pin/Add Facade (`pin_add_facade.lua`)
 
--   CID format validation (CIDv0/CIDv1)
 -   Daily pin quotas per IP (100 pins/day default)
--   Content prefetch with 1MB size limit
--   JSON schema validation via sidecar
+-   Delegates to validation-service for:
+    -   CID format validation (CIDv0/CIDv1)
+    -   Content prefetch with 1MB size limit
+    -   JSON schema validation
 -   Force `recursive=false` for security
 
 #### DAG/Get Facade (`dag_get_facade.lua`)
 
--   Size-limited streaming (1MB max)
--   JSON validation
--   Optional schema validation
--   Performance monitoring
+-   CID format validation only
+-   No response content validation (content validated on write)
+-   Response size limits enforced at nginx level (5MB max)
+-   Streaming preserved for performance
+-   **Architectural Decision**: Removed response validation to preserve streaming and reduce latency. Content is validated on write (dag/put), so re-validation on read is unnecessary.
+
+#### DAG/Put Facade (`dag_put_facade.lua`)
+
+-   Daily put quotas per IP (100 puts/day default)
+-   Delegates to validation-service for:
+    -   HTTP method validation
+    -   Multipart form data extraction
+    -   Size limit enforcement (1MB)
+    -   JSON parsing and schema validation
 
 #### Pubsub Facades (`pubsub_*_facade.lua`)
 
--   Topic allowlisting: `mimis/(taglist|discovery)/[a-z0-9-]{1,64}`
--   Message size limits (64KB)
--   Connection limits (2 concurrent subscriptions per IP)
--   JSON schema validation
+-   Rate limiting: 30 publishes/minute per IP
+-   Connection limits: 2 concurrent subscriptions per IP
+-   Delegates to validation-service for:
+    -   Topic allowlisting: `mimis/(taglist|discovery)/[a-z0-9-]{1,64}`
+    -   Message size limits (64KB)
+    -   JSON schema validation
 
-### 3. AJV Validation Sidecar (`src/validator/`)
+#### Routing/Put Facade (`routing_put_facade.lua`)
+
+-   Delegates to validation-service for:
+    -   IPNS record validation
+    -   Peer ID format validation
+    -   Signature verification
+
+### 3. Validation Service (`../validation-service/`)
 
 **HTTP Service (Port 3000):**
 
--   `POST /validate` - Validate JSON against schemas
+Centralized TypeScript validation service that handles all validation logic:
+
+-   `POST /validate` - Generic JSON schema validation
+-   `POST /validate/ipns/:peerId` - IPNS record validation with signature verification
+-   `POST /validate/dag/put` - DAG put content validation (multipart, size, JSON, schema)
+-   `GET /validate/dag/get` - CID format validation
+-   `POST /validate/pin/add?validate-content=true` - Pin validation with optional content prefetch
+-   `POST /validate/pubsub/pub` - Pubsub publish validation (topic, size, schema)
+-   `POST /validate/pubsub/sub` - Pubsub subscribe validation (topic only)
 -   `GET /health` - Health check
 -   `GET /schemas` - List available schemas
 
 **Supported Schemas:**
 
--   `data/write/v1` - Data write validation
+-   `data/write/v1` - Data write validation (UserManifest, DidDocument, EncryptedTagCollection)
 -   `pubsub/head/v1` - Pubsub message validation
+
+**Features:**
+
+-   HTTP method validation for all endpoints
+-   Request body size validation with disk buffering detection
+-   Content prefetching from Kubo for pin/add validation
+-   Streaming JSON parsing with size limits
+-   AJV-based JSON Schema validation
+-   IPNS signature verification using libp2p
 
 ## Security Features
 
